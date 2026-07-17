@@ -1,0 +1,2514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermodynamic Spectrolyzer</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --fg: #e0e0e0;
+            --accent: #445566;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--fg);
+            font-family: 'Courier New', Courier, monospace;
+            /* Utilitarian/Language optimize vibe */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gpuCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .hud-element {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+
+        button {
+            pointer-events: auto;
+            background: transparent;
+            color: var(--fg);
+            border: 1px solid var(--accent);
+            padding: 8px 16px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+        }
+
+        button:hover {
+            background: var(--fg);
+            color: var(--bg);
+        }
+
+        #error-msg {
+            z-index: 100;
+            color: #ff5555;
+            text-align: center;
+            max-width: 600px;
+            display: none;
+        }
+
+        /* Minimalist glyphs for language optimization side-goal */
+        #glyph-matrix {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            width: 50px;
+            height: 50px;
+            border: 1px solid var(--accent);
+            opacity: 0.3;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            padding: 2px;
+        }
+
+        .glyph-cell {
+            background: var(--fg);
+            opacity: 0;
+            transition: opacity 0.1s linear;
+        }
+
+        .icon-btn {
+            pointer-events: auto;
+            position: absolute;
+            z-index: 40;
+            background: rgba(10, 10, 15, 0.5);
+            border: 1px solid var(--accent);
+            color: var(--fg);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(8px);
+        }
+
+        .icon-btn:hover {
+            border-color: #00ffcc;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+            color: #00ffcc;
+        }
+
+        #settings-toggle-btn {
+            top: 20px;
+            right: 20px;
+        }
+
+        #btn-fullscreen {
+            top: 20px;
+            right: 70px;
+        }
+
+        #settings-panel {
+            position: absolute;
+            top: 0;
+            right: -380px;
+            width: 340px;
+            height: 100%;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 50;
+            transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            color: #d0d0d8;
+        }
+
+        #settings-panel.open {
+            right: 0;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #settings-panel h2 {
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #00ffcc;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .setting-item label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .setting-item label span {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+
+        .setting-item input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .setting-item input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00ffcc;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 255, 204, 0.8);
+            transition: transform 0.1s ease;
+        }
+
+        .setting-item input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+        }
+
+        .setting-item select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 6px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            outline: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .setting-item select option {
+            background: #111118;
+            color: #d0d0d8;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        #log-console {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            height: 120px;
+            overflow-y: auto;
+            font-size: 0.6rem;
+            padding: 8px;
+            box-sizing: border-box;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            color: #88c0d0;
+        }
+
+        .log-entry {
+            border-left: 2px solid #00ffcc;
+            padding-left: 5px;
+        }
+
+        .hotkey-guide {
+            font-size: 0.6rem;
+            line-height: 1.4;
+            opacity: 0.5;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gpuCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud-element" id="status">Status: Standby</div>
+        <button id="start-btn">Initialize Audio Context</button>
+        <button id="encode-btn" style="display:none;">Engage Hardware Encoder (NVENC/AMF)</button>
+        <div class="hud-element" id="telemetry">Compute: 0 ms | Encode: OFF</div>
+        <canvas id="telemetryCanvas" width="240" height="120"
+            style="position:relative; width:240px; height:120px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(0,0,0,0.5); pointer-events: auto; display:block; margin-top: 10px;"></canvas>
+    </div>
+
+    <!-- Procedural thoughtform glyph matrix -->
+    <div id="glyph-matrix">
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+        <div class="glyph-cell"></div>
+    </div>
+
+    <div id="settings-toggle-btn" class="icon-btn" title="Toggle Settings (Esc or Tab)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+        </svg>
+    </div>
+
+    <div id="btn-fullscreen" class="icon-btn" title="Toggle Fullscreen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"></path>
+        </svg>
+    </div>
+
+    <div id="settings-panel">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 10px; margin-bottom: 15px;">
+            <h2
+                style="margin: 0; border: none; padding: 0; font-size: 1.1rem; letter-spacing: 3px; text-transform: uppercase; color: #00ffcc;">
+                System Config</h2>
+            <div style="display: flex; gap: 8px;">
+                <button id="settings-save-top-btn" style="font-size: 0.7rem; padding: 4px 8px;">Save</button>
+                <button id="settings-close-btn"
+                    style="font-size: 0.7rem; padding: 4px 8px; border-color: #ff5555; color: #ff5555;">X</button>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <label>Visual Mode</label>
+            <select id="ctrl-visual-mode">
+                <option value="0">Bottom Bar Only</option>
+                <option value="1">Center Circle Only</option>
+                <option value="2">Circle Normal / Bar Bass</option>
+                <option value="3">Circle Bass / Bar Normal</option>
+            </select>
+        </div>
+
+        <div class="setting-item">
+            <label>Color Theme</label>
+            <select id="ctrl-theme">
+                <option value="0">Plasma / Original</option>
+                <option value="1">Cyberpunk</option>
+                <option value="2">Toxic Green</option>
+                <option value="3">Ice Blue</option>
+                <option value="4">Thermal</option>
+                <option value="5">Space Cosmic</option>
+                <option value="6">Water Deep</option>
+                <option value="7">Digital Neon</option>
+            </select>
+        </div>
+
+        <div class="setting-item">
+            <label>Viscosity <span id="val-viscosity">0.995</span></label>
+            <input type="range" id="ctrl-viscosity" min="0.95" max="1.0" step="0.001" value="0.995">
+        </div>
+
+        <div class="setting-item">
+            <label>Entropy <span id="val-entropy">0.985</span></label>
+            <input type="range" id="ctrl-entropy" min="0.90" max="1.0" step="0.001" value="0.985">
+        </div>
+
+        <div class="setting-item">
+            <label>Advection <span id="val-advection">1.0</span></label>
+            <input type="range" id="ctrl-advection" min="0.0" max="2.0" step="0.05" value="1.0">
+        </div>
+
+        <div class="setting-item">
+            <label>Buoyancy <span id="val-buoyancy">40.0</span></label>
+            <input type="range" id="ctrl-buoyancy" min="0.0" max="100.0" step="1.0" value="40.0">
+        </div>
+
+        <div class="setting-item">
+            <label>Time Gating <span id="val-time-gating">0.999</span></label>
+            <input type="range" id="ctrl-time-gating" min="0.95" max="1.0" step="0.001" value="0.999">
+        </div>
+
+        <div class="setting-item">
+            <label>Audio Multiplier <span id="val-tempo">1.0</span></label>
+            <input type="range" id="ctrl-tempo" min="0.1" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="setting-item">
+            <label>Audio Sensitivity <span id="val-audio-sensitivity">1.00</span></label>
+            <input type="range" id="ctrl-audio-sensitivity" min="0.1" max="5.0" step="0.05" value="1.00">
+        </div>
+
+        <div class="setting-item">
+            <label>Noise Gate Threshold <span id="val-audio-threshold">0.020</span></label>
+            <input type="range" id="ctrl-audio-threshold" min="0.000" max="0.500" step="0.001" value="0.020">
+        </div>
+
+        <div style="margin-top: 10px; margin-bottom: 15px;">
+            <button id="btn-auto-adjust"
+                style="width: 100%; font-size: 0.8rem; padding: 8px; border-color: #00ffcc; color: #00ffcc; text-transform: uppercase;">Auto-Adjust
+                (Calibrate Silence)</button>
+        </div>
+
+        <div class="setting-item">
+            <label>Quality / Resolution</label>
+            <select id="ctrl-quality" style="width:100%; margin-top:5px; background:rgba(0,0,0,0.6); color:#fff; border:1px solid #333; padding:5px; outline:none; font-family:monospace; font-size:0.8rem;">
+                <option value="1080p60">1080p @ 60Hz</option>
+                <option value="1080p30">1080p @ 30Hz</option>
+                <option value="720p60" selected>720p @ 60Hz</option>
+                <option value="720p30">720p @ 30Hz</option>
+                <option value="480p30">480p @ 30Hz</option>
+                <option value="480p24">480p @ 24Hz</option>
+            </select>
+        </div>
+
+        <div class="checkbox-container" title="Normalize audio spectrum against rolling averages per bin to prevent bass flooding.">
+            <span>Audio Graph: Relative AGC</span>
+            <input type="checkbox" id="ctrl-audio-agc" checked>
+        </div>
+
+        <div class="setting-item">
+            <label>Graph Fineness <span id="val-graph-fineness">0.5</span></label>
+            <input type="range" id="ctrl-graph-fineness" min="0.1" max="1.0" step="0.1" value="0.5">
+        </div>
+
+        <div class="checkbox-container" title="Enable full Navier-Stokes pressure projection solver. Highly realistic but computationally expensive.">
+            <span>Full Navier-Stokes Pressure</span>
+            <input type="checkbox" id="ctrl-full-pressure" checked>
+        </div>
+
+        <div class="checkbox-container" title="Show Chladni circles and linear bar bands driven by audio data.">
+            <span>Show Spectrogram Overlays</span>
+            <input type="checkbox" id="ctrl-show-overlays" checked>
+        </div>
+
+        <div class="checkbox-container"
+            title="Use a real-morphic fluid domain-warped background instead of solid color.">
+            <span>Living Background</span>
+            <input type="checkbox" id="ctrl-living-bg" checked>
+        </div>
+
+        <div class="checkbox-container">
+            <span>Bypass Fluid Engine</span>
+            <input type="checkbox" id="ctrl-bypass">
+        </div>
+
+        <div class="checkbox-container">
+            <span>Webcam Video Mask (NVDEC/DXVA2)</span>
+            <input type="checkbox" id="ctrl-video-mask">
+        </div>
+
+        <div class="setting-item">
+            <label>Mask Intensity <span id="val-mask-intensity">1.0</span></label>
+            <input type="range" id="ctrl-mask-intensity" min="0.0" max="2.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="checkbox-container">
+            <span>GPU Load -> Fluid Noise</span>
+            <input type="checkbox" id="ctrl-gpu-noise" checked>
+        </div>
+
+        <div class="checkbox-container">
+            <span>CPU Load -> Buoyancy</span>
+            <input type="checkbox" id="ctrl-cpu-buoyancy" checked>
+        </div>
+
+        <div class="checkbox-container">
+            <span>Async Compute Isolation</span>
+            <input type="checkbox" id="ctrl-async-compute">
+        </div>
+
+        <div class="checkbox-container">
+            <span>Show Telemetry Graph</span>
+            <input type="checkbox" id="ctrl-show-telemetry" checked>
+        </div>
+
+        <div>
+            <label
+                style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; display:block;">Ideation
+                Log</label>
+            <div id="log-console"></div>
+            <button id="export-log-btn" style="width:100%; margin-top:8px; font-size:0.7rem; padding:6px;">Export
+                Log</button>
+        </div>
+
+        <div class="hotkey-guide">
+            <strong>Hotkeys:</strong><br>
+            [Esc] / [Tab] - Toggle panel<br>
+            [1-8] - Change Theme<br>
+            [M] - Cycle Visual Mode<br>
+            [H] - Toggle Heavy Mode<br>
+            [B] - Toggle Fluid Bypass<br>
+            [T] - Toggle Dynamic Thermo<br>
+            [G] - Toggle GPU Noise<br>
+            [C] - Toggle CPU Buoyancy
+        </div>
+
+        <div style="margin-top: 15px;">
+            <button id="settings-save-bottom-btn" style="width: 100%; font-size: 0.8rem; padding: 8px;">Save
+                Settings</button>
+        </div>
+    </div>
+
+    <div id="error-msg"></div>
+
+    <script type="module">
+        // ==========================================
+        // 1. CONFIGURATION & SHADERS (WGSL)
+        // ==========================================
+
+        const COMPUTE_SHADER = `
+        struct Params {
+            width: f32,
+            height: f32,
+            time: f32,
+            bassEnergy: f32,
+            dt: f32,
+            viscosity: f32,
+            entropy: f32,
+            advection: f32,
+            buoyancy: f32,
+            bypass: f32,
+            timeGating: f32,
+            tempo: f32,
+            visualMode: f32,
+            theme: f32,
+            maskIntensity: f32,
+            telemetryCpu: f32,
+            telemetryGpu: f32,
+            gpuNoiseToggle: f32,
+            cpuBuoyancyToggle: f32,
+            showSpectrogram: f32,
+            livingBg: f32,
+            graphFineness: f32,
+            pad2: f32,
+            pad3: f32,
+        };
+
+        @group(0) @binding(0) var<uniform> params: Params;
+        @group(0) @binding(1) var<storage, read> audioData: array<f32>;
+
+        @group(1) @binding(0) var velocityIn: texture_2d<f32>;
+        @group(1) @binding(1) var velocityOut: texture_storage_2d<rgba16float, write>;
+        @group(1) @binding(2) var dyeIn: texture_2d<f32>;
+        @group(1) @binding(3) var dyeOut: texture_storage_2d<rgba16float, write>;
+        @group(1) @binding(4) var divergenceIn: texture_2d<f32>;
+        @group(1) @binding(5) var divergenceOut: texture_storage_2d<rgba16float, write>;
+        @group(1) @binding(6) var pressureIn: texture_2d<f32>;
+        @group(1) @binding(7) var pressureOut: texture_storage_2d<rgba16float, write>;
+
+        fn hash(p: vec2<f32>) -> f32 {
+            return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453123);
+        }
+
+        fn sampleBilinearDye(tex: texture_2d<f32>, coords: vec2<f32>) -> vec4<f32> {
+            let dim = vec2<f32>(textureDimensions(tex));
+            let f = fract(coords - 0.5);
+            let c = vec2<i32>(floor(coords - 0.5));
+            let c00 = textureLoad(tex, clamp(c, vec2(0), vec2<i32>(dim) - 1), 0);
+            let c10 = textureLoad(tex, clamp(c + vec2(1, 0), vec2(0), vec2<i32>(dim) - 1), 0);
+            let c01 = textureLoad(tex, clamp(c + vec2(0, 1), vec2(0), vec2<i32>(dim) - 1), 0);
+            let c11 = textureLoad(tex, clamp(c + vec2(1, 1), vec2(0), vec2<i32>(dim) - 1), 0);
+            return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+        }
+
+        fn sampleBilinearVelocity(tex: texture_2d<f32>, coords: vec2<f32>) -> vec2<f32> {
+            let dim = vec2<f32>(textureDimensions(tex));
+            let f = fract(coords - 0.5);
+            let c = vec2<i32>(floor(coords - 0.5));
+            let c00 = textureLoad(tex, clamp(c, vec2(0), vec2<i32>(dim) - 1), 0).rg;
+            let c10 = textureLoad(tex, clamp(c + vec2(1, 0), vec2(0), vec2<i32>(dim) - 1), 0).rg;
+            let c01 = textureLoad(tex, clamp(c + vec2(0, 1), vec2(0), vec2<i32>(dim) - 1), 0).rg;
+            let c11 = textureLoad(tex, clamp(c + vec2(1, 1), vec2(0), vec2<i32>(dim) - 1), 0).rg;
+            return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn advectVelocity(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+            let pos = vec2<f32>(coords) + 0.5;
+
+            let u = textureLoad(velocityIn, coords, 0).rg;
+            let prevPos = pos - params.dt * params.advection * u;
+            var newU = sampleBilinearVelocity(velocityIn, prevPos);
+            newU *= params.viscosity;
+
+            textureStore(velocityOut, coords, vec4<f32>(newU, 0.0, 1.0));
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn advectDye(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+            let pos = vec2<f32>(coords) + 0.5;
+
+            let u = textureLoad(velocityIn, coords, 0).rg;
+            let prevPos = pos - params.dt * params.advection * u;
+            var newDye = sampleBilinearDye(dyeIn, prevPos);
+
+            // Initialize grid dynamically on start
+            if (params.time < 0.02) {
+                newDye = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+                if (hash(vec2<f32>(coords)) > 0.999) {
+                    newDye.g = 1.0;
+                }
+            }
+
+            // Audio injection of dye
+            var injection = 0.0;
+
+            // 1. Bottom Bar injection
+            if (params.visualMode == 0.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                var binIdx = u32((f32(x) / params.width) * 128.0);
+                if (params.visualMode == 2.0) {
+                    binIdx = u32((f32(x) / params.width) * 16.0); // Bar Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                if (f32(y) > params.height * 0.8) {
+                    injection += audioVal * 0.015;
+                }
+            }
+
+            // 2. Circle injection
+            if (params.visualMode == 1.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                let center = vec2<f32>(params.width * 0.5, params.height * 0.5);
+                let aspect = params.width / params.height;
+                let dVec = (vec2<f32>(coords) - center) / params.height; // normalize by height
+                let r = length(dVec);
+                let theta = atan2(dVec.y, dVec.x * aspect);
+                let phi = (theta + 3.14159265) / (2.0 * 3.14159265);
+                
+                var binIdx = u32(phi * 128.0);
+                if (params.visualMode == 3.0) {
+                    binIdx = u32(phi * 16.0); // Circle Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                let targetR = 0.2 + 0.15 * audioVal;
+                
+                if (abs(r - targetR) < 0.015) {
+                    injection += audioVal * 0.025;
+                }
+            }
+
+            newDye.g += injection;
+
+            newDye.g *= params.entropy;
+            newDye.r = mix(newDye.r, 1.0, (1.0 - params.entropy) * 0.1);
+            newDye = clamp(newDye, vec4<f32>(0.0), vec4<f32>(1.0));
+
+            textureStore(dyeOut, coords, newDye);
+        }
+
+        fn getVorticity(coords: vec2<i32>) -> f32 {
+            let dim = vec2<i32>(i32(params.width), i32(params.height));
+            let uL = textureLoad(velocityIn, clamp(coords - vec2(1, 0), vec2(0), dim - 1), 0).y;
+            let uR = textureLoad(velocityIn, clamp(coords + vec2(1, 0), vec2(0), dim - 1), 0).y;
+            let vB = textureLoad(velocityIn, clamp(coords - vec2(0, 1), vec2(0), dim - 1), 0).x;
+            let vT = textureLoad(velocityIn, clamp(coords + vec2(0, 1), vec2(0), dim - 1), 0).x;
+            return (uR - uL) * 0.5 - (vT - vB) * 0.5;
+        }
+
+        fn getVorticityForce(coords: vec2<i32>) -> vec2<f32> {
+            let dim = vec2<i32>(i32(params.width), i32(params.height));
+            let vL = abs(getVorticity(clamp(coords - vec2(1, 0), vec2(0), dim - 1)));
+            let vR = abs(getVorticity(clamp(coords + vec2(1, 0), vec2(0), dim - 1)));
+            let vB = abs(getVorticity(clamp(coords - vec2(0, 1), vec2(0), dim - 1)));
+            let vT = abs(getVorticity(clamp(coords + vec2(0, 1), vec2(0), dim - 1)));
+            let vC = getVorticity(coords);
+            
+            var force = vec2<f32>(0.0);
+            let diff = vec2<f32>(vR - vL, vT - vB) * 0.5;
+            let eps = 1e-5;
+            let mag = length(diff) + eps;
+            let n = diff / mag;
+            
+            force.x = n.y * vC;
+            force.y = -n.x * vC;
+            return force;
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn applyForces(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            var u = textureLoad(velocityIn, coords, 0).rg;
+            let dye = textureLoad(dyeIn, coords, 0);
+
+            let temp = dye.g;
+            var activeBuoyancy = params.buoyancy;
+            if (params.cpuBuoyancyToggle > 0.5) {
+                activeBuoyancy = params.buoyancy * (1.0 + params.telemetryCpu * 2.5);
+            }
+            var force = vec2<f32>(0.0, -activeBuoyancy * temp * params.dt);
+
+            // 1. Bottom Bar velocity force
+            if (params.visualMode == 0.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                var binIdx = u32((f32(x) / params.width) * 128.0);
+                if (params.visualMode == 2.0) {
+                    binIdx = u32((f32(x) / params.width) * 16.0); // Bar Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                if (f32(y) > params.height * 0.9) {
+                    force.y -= audioVal * 5.0 * params.dt;
+                    force.x += sin(params.time * 5.0 + f32(x) * 0.1) * audioVal * 2.0 * params.dt;
+                }
+            }
+
+            // 2. Chladni Circle velocity force (pushing radially outward based on audio)
+            if (params.visualMode == 1.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                let center = vec2<f32>(params.width * 0.5, params.height * 0.5);
+                let aspect = params.width / params.height;
+                let dVec = (vec2<f32>(coords) - center) / params.height;
+                let r = length(dVec);
+                let theta = atan2(dVec.y, dVec.x * aspect);
+                let phi = (theta + 3.14159265) / (2.0 * 3.14159265);
+                
+                var binIdx = u32(phi * 128.0);
+                if (params.visualMode == 3.0) {
+                    binIdx = u32(phi * 16.0); // Circle Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                let targetR = 0.2 + 0.15 * audioVal;
+                
+                if (abs(r - targetR) < 0.02) {
+                    let radDir = normalize(dVec);
+                    force += radDir * audioVal * 6.0 * params.dt;
+                }
+            }
+
+            if (params.gpuNoiseToggle > 0.5) {
+                let nVal = hash(vec2<f32>(coords) + params.time);
+                let noiseForce = vec2<f32>(
+                    cos(nVal * 6.28318) * params.telemetryGpu * 15.0 * params.dt,
+                    sin(nVal * 6.28318) * params.telemetryGpu * 15.0 * params.dt
+                );
+                force += noiseForce;
+            }
+
+            // Real-morphic Vorticity Confinement
+            let vForce = getVorticityForce(coords);
+            let vortEpsilon = 12.0 + params.bassEnergy * 10.0; 
+            force += vForce * vortEpsilon * params.dt;
+
+            u += force;
+            u *= params.timeGating;
+
+            textureStore(velocityOut, coords, vec4<f32>(u, 0.0, 1.0));
+        }
+
+        @group(2) @binding(0) var videoTex: texture_external;
+        @group(2) @binding(1) var videoSampler: sampler;
+
+        @compute @workgroup_size(16, 16)
+        fn applyForcesWithMask(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            var u = textureLoad(velocityIn, coords, 0).rg;
+            let dye = textureLoad(dyeIn, coords, 0);
+
+            let temp = dye.g;
+            var activeBuoyancy = params.buoyancy;
+            if (params.cpuBuoyancyToggle > 0.5) {
+                activeBuoyancy = params.buoyancy * (1.0 + params.telemetryCpu * 2.5);
+            }
+            var force = vec2<f32>(0.0, -activeBuoyancy * temp * params.dt);
+
+            // 1. Bottom Bar velocity force
+            if (params.visualMode == 0.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                var binIdx = u32((f32(x) / params.width) * 128.0);
+                if (params.visualMode == 2.0) {
+                    binIdx = u32((f32(x) / params.width) * 16.0); // Bar Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                if (f32(y) > params.height * 0.9) {
+                    force.y -= audioVal * 5.0 * params.dt;
+                    force.x += sin(params.time * 5.0 + f32(x) * 0.1) * audioVal * 2.0 * params.dt;
+                }
+            }
+
+            // 2. Chladni Circle velocity force (pushing radially outward based on audio)
+            if (params.visualMode == 1.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                let center = vec2<f32>(params.width * 0.5, params.height * 0.5);
+                let aspect = params.width / params.height;
+                let dVec = (vec2<f32>(coords) - center) / params.height;
+                let r = length(dVec);
+                let theta = atan2(dVec.y, dVec.x * aspect);
+                let phi = (theta + 3.14159265) / (2.0 * 3.14159265);
+                
+                var binIdx = u32(phi * 128.0);
+                if (params.visualMode == 3.0) {
+                    binIdx = u32(phi * 16.0); // Circle Bass
+                }
+                let audioVal = audioData[binIdx] * params.tempo;
+                let targetR = 0.2 + 0.15 * audioVal;
+                
+                if (abs(r - targetR) < 0.02) {
+                    let radDir = normalize(dVec);
+                    force += radDir * audioVal * 6.0 * params.dt;
+                }
+            }
+
+            if (params.gpuNoiseToggle > 0.5) {
+                let nVal = hash(vec2<f32>(coords) + params.time);
+                let noiseForce = vec2<f32>(
+                    cos(nVal * 6.28318) * params.telemetryGpu * 15.0 * params.dt,
+                    sin(nVal * 6.28318) * params.telemetryGpu * 15.0 * params.dt
+                );
+                force += noiseForce;
+            }
+
+            // Real-morphic Vorticity Confinement
+            let vForce = getVorticityForce(coords);
+            let vortEpsilon = 12.0 + params.bassEnergy * 10.0; 
+            force += vForce * vortEpsilon * params.dt;
+
+            // 3. Video Mask force mapping
+            let uv = vec2<f32>(coords) / vec2<f32>(params.width, params.height);
+            let flippedUv = vec2<f32>(1.0 - uv.x, uv.y);
+            let videoColor = textureSampleBaseClampToEdge(videoTex, videoSampler, flippedUv);
+            let luma = 0.299 * videoColor.r + 0.587 * videoColor.g + 0.114 * videoColor.b;
+            
+            if (luma > 0.15) {
+                // Rising thermal force proportional to video luma and mask intensity
+                force.y -= luma * params.maskIntensity * 20.0 * params.dt;
+                
+                // Also inject heat (dye) where luma is high to make it visible
+                var currentDye = textureLoad(dyeIn, coords, 0);
+                let heatInjection = luma * params.maskIntensity * 0.05;
+                currentDye.g = min(currentDye.g + heatInjection, 1.0);
+                
+                // Color the fluid based on the video
+                currentDye.r = mix(currentDye.r, videoColor.r, 0.1);
+                currentDye.b = mix(currentDye.b, videoColor.b, 0.1);
+                
+                textureStore(dyeOut, coords, currentDye);
+            }
+
+            u += force;
+            u *= params.timeGating;
+
+            textureStore(velocityOut, coords, vec4<f32>(u, 0.0, 1.0));
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn computeDivergence(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            let w = i32(params.width);
+            let h = i32(params.height);
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            let uL = textureLoad(velocityIn, vec2(max(coords.x - 1, 0), coords.y), 0).x;
+            let uR = textureLoad(velocityIn, vec2(min(coords.x + 1, w - 1), coords.y), 0).x;
+            let vT = textureLoad(velocityIn, vec2(coords.x, max(coords.y - 1, 0)), 0).y;
+            let vB = textureLoad(velocityIn, vec2(coords.x, min(coords.y + 1, h - 1)), 0).y;
+
+            let div = 0.5 * (uR - uL + vB - vT);
+            textureStore(divergenceOut, coords, vec4<f32>(div, 0.0, 0.0, 1.0));
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn jacobiPressure(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            let w = i32(params.width);
+            let h = i32(params.height);
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            let pL = textureLoad(pressureIn, vec2(max(coords.x - 1, 0), coords.y), 0).r;
+            let pR = textureLoad(pressureIn, vec2(min(coords.x + 1, w - 1), coords.y), 0).r;
+            let pT = textureLoad(pressureIn, vec2(coords.x, max(coords.y - 1, 0)), 0).r;
+            let pB = textureLoad(pressureIn, vec2(coords.x, min(coords.y + 1, h - 1)), 0).r;
+
+            let div = textureLoad(divergenceIn, coords, 0).r;
+            let p = 0.25 * (pL + pR + pT + pB - div);
+            
+            textureStore(pressureOut, coords, vec4<f32>(p, 0.0, 0.0, 1.0));
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn projectVelocity(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            let w = i32(params.width);
+            let h = i32(params.height);
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            let pL = textureLoad(pressureIn, vec2(max(coords.x - 1, 0), coords.y), 0).r;
+            let pR = textureLoad(pressureIn, vec2(min(coords.x + 1, w - 1), coords.y), 0).r;
+            let pT = textureLoad(pressureIn, vec2(coords.x, max(coords.y - 1, 0)), 0).r;
+            let pB = textureLoad(pressureIn, vec2(coords.x, min(coords.y + 1, h - 1)), 0).r;
+
+            var u = textureLoad(velocityIn, coords, 0).rg;
+            u.x -= 0.5 * (pR - pL);
+            u.y -= 0.5 * (pB - pT);
+
+            textureStore(velocityOut, coords, vec4<f32>(u, 0.0, 1.0));
+        }
+
+        @compute @workgroup_size(16, 16)
+        fn reactionDiffusion(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x;
+            let y = global_id.y;
+            if (f32(x) >= params.width || f32(y) >= params.height) { return; }
+            let coords = vec2<i32>(i32(x), i32(y));
+
+            let center = textureLoad(dyeIn, coords, 0).rg;
+            var a = center.r;
+            var b = center.g;
+
+            if (params.time < 0.02) {
+                a = 1.0;
+                if (hash(vec2<f32>(coords)) > 0.999) {
+                    b = 1.0;
+                }
+            }
+
+            var lapA = -a;
+            var lapB = -b;
+            
+            lapA += 0.2 * (textureLoad(dyeIn, coords + vec2(1, 0), 0).r + textureLoad(dyeIn, coords + vec2(-1, 0), 0).r + textureLoad(dyeIn, coords + vec2(0, 1), 0).r + textureLoad(dyeIn, coords + vec2(0, -1), 0).r);
+            lapA += 0.05 * (textureLoad(dyeIn, coords + vec2(1, 1), 0).r + textureLoad(dyeIn, coords + vec2(-1, -1), 0).r + textureLoad(dyeIn, coords + vec2(-1, 1), 0).r + textureLoad(dyeIn, coords + vec2(1, -1), 0).r);
+            
+            lapB += 0.2 * (textureLoad(dyeIn, coords + vec2(1, 0), 0).g + textureLoad(dyeIn, coords + vec2(-1, 0), 0).g + textureLoad(dyeIn, coords + vec2(0, 1), 0).g + textureLoad(dyeIn, coords + vec2(0, -1), 0).g);
+            lapB += 0.05 * (textureLoad(dyeIn, coords + vec2(1, 1), 0).g + textureLoad(dyeIn, coords + vec2(-1, -1), 0).g + textureLoad(dyeIn, coords + vec2(-1, 1), 0).g + textureLoad(dyeIn, coords + vec2(1, -1), 0).g);
+
+            let audioIndex = u32((f32(x) / params.width) * 128.0);
+            let audioVal = audioData[audioIndex] * params.tempo;
+            
+            var injection = 0.0;
+            if (f32(y) > params.height * 0.8) {
+                injection = audioVal * 0.015; 
+            }
+            
+            let reaction = a * b * b;
+            let dynamicFeed = 0.055 + (params.bassEnergy * 0.01);
+            
+            var newA = a + (1.0 * lapA - reaction + dynamicFeed * (1.0 - a));
+            var newB = b + (0.5 * lapB + reaction - (0.062 + dynamicFeed) * b) + injection;
+            
+            if (f32(y) < params.height - 1.0) {
+                let below = textureLoad(dyeIn, coords + vec2(0, 1), 0).rg;
+                newA = mix(newA, below.r, 0.01 + (params.bassEnergy * 0.05));
+                newB = mix(newB, below.g, 0.02 + (params.bassEnergy * 0.05));
+            }
+
+            newA = clamp(newA, 0.0, 1.0);
+            newB = clamp(newB, 0.0, 1.0);
+            newB *= params.entropy;
+
+            textureStore(dyeOut, coords, vec4<f32>(newA, newB, 0.0, 1.0));
+        }
+    `;
+
+        const RENDER_SHADER = `
+        @vertex
+        fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<f32> {
+            var pos = array<vec2<f32>, 6>(
+                vec2(-1.0, -1.0), vec2( 1.0, -1.0), vec2(-1.0,  1.0),
+                vec2(-1.0,  1.0), vec2( 1.0, -1.0), vec2( 1.0,  1.0)
+            );
+            return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+        }
+
+        struct Params {
+            width: f32,
+            height: f32,
+            time: f32,
+            bassEnergy: f32,
+            dt: f32,
+            viscosity: f32,
+            entropy: f32,
+            advection: f32,
+            buoyancy: f32,
+            bypass: f32,
+            timeGating: f32,
+            tempo: f32,
+            visualMode: f32,
+            theme: f32,
+            maskIntensity: f32,
+            telemetryCpu: f32,
+            telemetryGpu: f32,
+            gpuNoiseToggle: f32,
+            cpuBuoyancyToggle: f32,
+            showSpectrogram: f32,
+            livingBg: f32,
+            graphFineness: f32,
+            pad2: f32,
+            pad3: f32,
+        };
+
+        @group(0) @binding(0) var mySampler: sampler;
+        @group(0) @binding(1) var myTexture: texture_2d<f32>;
+        @group(0) @binding(2) var<storage, read> audioData: array<f32>;
+        @group(0) @binding(3) var<uniform> params: Params;
+
+        fn getPaletteColor(theme: f32, heat: f32) -> vec3<f32> {
+            let t = clamp(heat, 0.0, 1.0);
+            
+            // Plasma (0)
+            if (theme < 0.5) {
+                let c1 = vec3<f32>(0.0, 0.0, 0.0);
+                let c2 = vec3<f32>(0.1, 0.2, 0.4);
+                let c3 = vec3<f32>(0.8, 0.2, 0.3);
+                let c4 = vec3<f32>(1.0, 0.9, 0.5);
+                if (t < 0.1) { return mix(c1, c2, t * 10.0); }
+                if (t < 0.3) { return mix(c2, c3, (t - 0.1) * 5.0); }
+                return mix(c3, c4, (t - 0.3) * 1.4);
+            }
+            // Cyberpunk (1)
+            if (theme < 1.5) {
+                let c1 = vec3<f32>(0.0, 0.0, 0.0);
+                let c2 = vec3<f32>(0.2, 0.0, 0.4);
+                let c3 = vec3<f32>(1.0, 0.05, 0.6);
+                let c4 = vec3<f32>(0.0, 1.0, 0.9);
+                if (t < 0.1) { return mix(c1, c2, t * 10.0); }
+                if (t < 0.4) { return mix(c2, c3, (t - 0.1) * 3.33); }
+                return mix(c3, c4, (t - 0.4) * 1.66);
+            }
+            // Toxic (2)
+            if (theme < 2.5) {
+                let c1 = vec3<f32>(0.0, 0.0, 0.0);
+                let c2 = vec3<f32>(0.0, 0.2, 0.05);
+                let c3 = vec3<f32>(0.4, 0.8, 0.1);
+                let c4 = vec3<f32>(0.9, 1.0, 0.2);
+                if (t < 0.15) { return mix(c1, c2, t * 6.66); }
+                if (t < 0.4) { return mix(c2, c3, (t - 0.15) * 4.0); }
+                return mix(c3, c4, (t - 0.4) * 1.66);
+            }
+            // Ice (3)
+            if (theme < 3.5) {
+                let c1 = vec3<f32>(0.0, 0.0, 0.0);
+                let c2 = vec3<f32>(0.05, 0.1, 0.3);
+                let c3 = vec3<f32>(0.4, 0.7, 1.0);
+                let c4 = vec3<f32>(0.95, 0.98, 1.0);
+                if (t < 0.1) { return mix(c1, c2, t * 10.0); }
+                if (t < 0.4) { return mix(c2, c3, (t - 0.1) * 3.33); }
+                return mix(c3, c4, (t - 0.4) * 1.66);
+            }
+            // Thermal (4)
+            if (theme < 4.5) {
+                let c1 = vec3<f32>(0.0, 0.0, 0.2);
+                let c2 = vec3<f32>(0.5, 0.0, 0.5);
+                let c3 = vec3<f32>(0.8, 0.0, 0.0);
+                let c4 = vec3<f32>(0.9, 0.9, 0.0);
+                let c5 = vec3<f32>(1.0, 1.0, 1.0);
+                if (t < 0.25) { return mix(c1, c2, t * 4.0); }
+                if (t < 0.5)  { return mix(c2, c3, (t - 0.25) * 4.0); }
+                if (t < 0.75) { return mix(c3, c4, (t - 0.5) * 4.0); }
+                return mix(c4, c5, (t - 0.75) * 4.0);
+            }
+            // Space (5)
+            if (theme < 5.5) {
+                let c1 = vec3<f32>(0.02, 0.02, 0.05);
+                let c2 = vec3<f32>(0.1, 0.05, 0.25);
+                let c3 = vec3<f32>(0.4, 0.1, 0.4);
+                let c4 = vec3<f32>(1.0, 0.6, 0.8);
+                if (t < 0.2) { return mix(c1, c2, t * 5.0); }
+                if (t < 0.5) { return mix(c2, c3, (t - 0.2) * 3.33); }
+                return mix(c3, c4, (t - 0.5) * 2.0);
+            }
+            // Water (6)
+            if (theme < 6.5) {
+                let c1 = vec3<f32>(0.01, 0.03, 0.08);
+                let c2 = vec3<f32>(0.0, 0.15, 0.3);
+                let c3 = vec3<f32>(0.0, 0.5, 0.5);
+                let c4 = vec3<f32>(0.2, 0.9, 0.8);
+                if (t < 0.15) { return mix(c1, c2, t * 6.66); }
+                if (t < 0.5)  { return mix(c2, c3, (t - 0.15) * 2.85); }
+                return mix(c3, c4, (t - 0.5) * 2.0);
+            }
+            // Digital / Techy (7)
+            let c1 = vec3<f32>(0.0, 0.0, 0.0);
+            let c2 = vec3<f32>(0.0, 0.25, 0.05);
+            let c3 = vec3<f32>(0.0, 0.8, 0.1);
+            let c4 = vec3<f32>(0.0, 0.9, 1.0);
+            if (t < 0.1) { return mix(c1, c2, t * 10.0); }
+            if (t < 0.4) { return mix(c2, c3, (t - 0.1) * 3.33); }
+            return mix(c3, c4, (t - 0.4) * 1.66);
+        }
+
+        fn hash(p: vec2<f32>) -> f32 {
+            return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453123);
+        }
+
+        fn noise(p: vec2<f32>) -> f32 {
+            let i = floor(p);
+            let f = fract(p);
+            let u = f * f * (3.0 - 2.0 * f);
+            return mix(
+                mix(hash(i + vec2<f32>(0.0,0.0)), hash(i + vec2<f32>(1.0,0.0)), u.x),
+                mix(hash(i + vec2<f32>(0.0,1.0)), hash(i + vec2<f32>(1.0,1.0)), u.x),
+                u.y
+            );
+        }
+
+        fn fbm(p: vec2<f32>) -> f32 {
+            var v = 0.0;
+            var a = 0.5;
+            var shift = vec2<f32>(100.0);
+            var pp = p;
+            for (var i = 0; i < 4; i++) {
+                v += a * noise(pp);
+                pp = pp * 2.0 + shift;
+                a *= 0.5;
+            }
+            return v;
+        }
+
+        @fragment
+        fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+            let dim = textureDimensions(myTexture);
+            let texCoord = vec2<f32>(pos.x / f32(dim.x), pos.y / f32(dim.y));
+            
+            let val = textureSample(myTexture, mySampler, texCoord);
+            let heat = val.g;
+            
+            var color = vec3<f32>(0.0);
+            if (params.livingBg > 0.5) {
+                let scaledUv = texCoord * 3.0;
+                let q = vec2<f32>(fbm(scaledUv + params.time * 0.1), fbm(scaledUv + vec2<f32>(5.2,1.3) + params.time * 0.12));
+                let rBg = vec2<f32>(fbm(scaledUv + 4.0 * q + vec2<f32>(1.7,9.2) + params.time * 0.15), fbm(scaledUv + 4.0 * q + vec2<f32>(8.3,2.8) + params.time * 0.1));
+                let bgVal = fbm(scaledUv + 4.0 * rBg);
+                
+                let baseColor = getPaletteColor(params.theme, bgVal * 0.35 * (0.4 + params.tempo * 0.6));
+                let fluidColor = getPaletteColor(params.theme, heat);
+                color = mix(baseColor * 0.4, fluidColor, clamp(heat * 3.0, 0.0, 1.0));
+            } else {
+                color = getPaletteColor(params.theme, heat);
+            }
+            
+            // Visual Spectrolyzer overlays
+            var overlayColor = vec3<f32>(0.0);
+            var overlayIntensity = 0.0;
+            
+            if (params.showSpectrogram > 0.5) {
+                let center = vec2<f32>(0.5, 0.5);
+                let aspect = params.width / params.height;
+                let dVec = (texCoord - center) * vec2<f32>(aspect, 1.0);
+                let r = length(dVec);
+                let theta = atan2(dVec.y, dVec.x);
+                let phi = (theta + 3.14159265) / (2.0 * 3.14159265);
+
+                // 1. Draw Bottom Linear Bar Bands
+                if (params.visualMode == 0.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                    if (texCoord.y > 0.85) {
+                        let h = (1.0 - texCoord.y) / 0.15;
+                        var maxIdx = 128.0;
+                        if (params.visualMode == 2.0) { maxIdx = 16.0; }
+                        let fIdx = texCoord.x * maxIdx;
+                        
+                        let idx0 = u32(fIdx);
+                        let idx1 = min(idx0 + 1u, 127u);
+                        let blend = smoothstep(0.0, 1.0, fract(fIdx));
+                        let audioVal = mix(audioData[idx0], audioData[idx1], blend);
+                        
+                        let dist = abs(h - audioVal);
+                        if (dist < 0.05) {
+                            let glow = 1.0 - (dist / 0.05);
+                            overlayColor = getPaletteColor(params.theme, 0.8);
+                            overlayIntensity = 0.8 * glow;
+                        } else if (h < audioVal) {
+                            overlayColor = getPaletteColor(params.theme, 0.5);
+                            overlayIntensity = 0.3 * (1.0 - h);
+                        }
+                    }
+                }
+
+                // 2. Draw Chladni Polar Circle
+                if (params.visualMode == 1.0 || params.visualMode == 2.0 || params.visualMode == 3.0) {
+                    var maxIdx = 128.0;
+                    if (params.visualMode == 3.0) { maxIdx = 16.0; }
+                    let fIdx = phi * maxIdx;
+                    
+                    let idx0 = u32(fIdx);
+                    let idx1 = min(idx0 + 1u, 127u);
+                    let blend = smoothstep(0.0, 1.0, fract(fIdx));
+                    let audioVal = mix(audioData[idx0], audioData[idx1], blend);
+                    
+                    let targetR = 0.2 + 0.15 * audioVal;
+                    let diff = abs(r - targetR);
+                    let lineThickness = 0.015;
+                    if (diff < lineThickness) {
+                        let glow = 1.0 - (diff / lineThickness);
+                        overlayColor = getPaletteColor(params.theme, 0.9);
+                        overlayIntensity = max(overlayIntensity, glow * 0.9);
+                    }
+                }
+
+                if (overlayIntensity > 0.0) {
+                    color = mix(color, overlayColor, overlayIntensity);
+                }
+            }
+
+            return vec4<f32>(color, 1.0);
+        }
+    `;
+
+        // ==========================================
+        // 2. CORE SYSTEM LOGIC
+        // ==========================================
+
+        const canvas = document.getElementById('gpuCanvas');
+        const statusEl = document.getElementById('status');
+        const telemetryEl = document.getElementById('telemetry');
+        const startBtn = document.getElementById('start-btn');
+        const encodeBtn = document.getElementById('encode-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const glyphCells = document.querySelectorAll('.glyph-cell');
+
+        let audioCtx, analyser, dataArray;
+        let device, context;
+
+        // Pipelines
+        let advectVelPipeline, advectDyePipeline, applyForcesPipeline;
+        let divPipeline, jacobiPipeline, projectPipeline, rdPipeline;
+        let renderPipeline;
+
+        // Resolution
+        let simWidth = 1024;
+        let simHeight = 576;
+
+        // Textures
+        let textureA, textureB; // Dye ping-pong
+        let velA, velB;         // Velocity ping-pong
+        let divTex;             // Divergence texture
+        let presA, presB;       // Pressure ping-pong
+
+        // Bind Groups
+        let group0AdvectVel, group0AdvectDye, group0ApplyForces;
+        let group0Div, group0Jacobi, group0Project, group0Rd;
+        let bgAdvectVelAB, bgAdvectVelBA;
+        let bgAdvectDyeAB, bgAdvectDyeBA;
+        let bgApplyForcesAB, bgApplyForcesBA;
+        let bgDivA, bgDivB;
+        let bgJacobiAB, bgJacobiBA;
+        let bgProjectAB, bgProjectBA;
+        let bgRdAB, bgRdBA;
+        let renderBindGroupA, renderBindGroupB;
+
+        let paramsBuffer, audioBuffer;
+        let frameNum = 0;
+        let startTimestamp = null;
+
+        let isEncoding = false;
+        let videoEncoder = null;
+
+        let ws = null;
+        let wsData = null;
+
+        // Fluid simulation parameters
+        let viscosity = 0.995;      // velocity damping
+        let entropy = 0.985;        // dye dissipation
+        let advection = 1.0;        // advection speed multiplier
+        let buoyancy = 40.0;        // thermal rising force
+        let bypass = 0.0;           // 0 = full fluid, 1 = reaction-diffusion only
+        let timeGating = 0.999;     // gating coefficient to prevent bleed
+        let tempo = 1.0;            // audio multiplier
+
+        // Phase 3 Graphics State
+        let visualMode = 0.0;       // 0 = Bar, 1 = Circle, 2 = Circle Normal / Bar Bass, 3 = Circle Bass / Bar Normal
+        let theme = 0.0;            // 0 = Plasma, 1 = Cyberpunk, 2 = Toxic, 3 = Ice, 4 = Thermal, 5 = Space, 6 = Water, 7 = Digital
+        let qualitySetting = "720p60";
+        let targetFPS = 60.0;
+        let frameInterval = 1000.0 / 60.0;
+        let lastFrameTime = 0;
+
+        // Phase 5 Silicon State
+        let useVideoMask = false;
+        let maskIntensity = 1.0;
+        let gpuNoiseToggled = true;
+        let cpuBuoyancyToggled = true;
+        let asyncComputeEnabled = false;
+        let showTelemetry = true;
+        let dynamicThermoToggled = true;
+        let showSpectrogram = true;
+        let livingBg = true;
+        let audioRelativeMode = true;
+        let graphFineness = 0.5;
+        let fullPressureSolver = true;
+
+        let videoElement = null;
+        let applyForcesWithMaskPipeline = null;
+        let group0ApplyForcesWithMask = null;
+        let videoSampler = null;
+
+        let latestCpu = 0.0;
+        let latestGpu = 0.0;
+        let latestEnc = 0.0;
+        let latestDec = 0.0;
+        let latestTemp = 0.0;
+        let latestMem = 0.0;
+
+        let smoothedEnergy = 0.0;
+        let audioThreshold = 0.02;
+        let audioSensitivity = 1.0;
+        let isCalibrating = false;
+        let calibrationFrames = 0;
+        const totalCalibrationFrames = 90;
+        let maxCalibrationNoise = 0.0;
+
+        // Ideation Log & Settings Storage
+        let ideationLog = [];
+        const logConsoleEl = document.getElementById('log-console');
+
+        function logEvent(msg) {
+            const timeStr = performance.now() ? (performance.now() / 1000).toFixed(2) : "0.00";
+            const entry = `[${timeStr}s] ${msg}`;
+            ideationLog.push({ time: timeStr, event: msg });
+            if (ideationLog.length > 50) ideationLog.shift();
+
+            if (logConsoleEl) {
+                const logDiv = document.createElement('div');
+                logDiv.className = 'log-entry';
+                logDiv.innerText = entry;
+                logConsoleEl.appendChild(logDiv);
+                logConsoleEl.scrollTop = logConsoleEl.scrollHeight;
+            }
+        }
+
+        function saveSettings() {
+            const settings = {
+                viscosity,
+                entropy,
+                advection,
+                buoyancy,
+                bypass,
+                timeGating,
+                tempo,
+                visualMode,
+                theme,
+                qualitySetting,
+                useVideoMask,
+                maskIntensity,
+                gpuNoiseToggled,
+                cpuBuoyancyToggled,
+                asyncComputeEnabled,
+                showTelemetry,
+                audioThreshold,
+                audioSensitivity,
+                dynamicThermoToggled,
+                showSpectrogram,
+                livingBg,
+                audioRelativeMode,
+                graphFineness,
+                fullPressureSolver
+            };
+            localStorage.setItem('serenity_vis_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem('serenity_vis_settings');
+                if (!raw) return;
+                const settings = JSON.parse(raw);
+                if (settings.viscosity !== undefined) viscosity = parseFloat(settings.viscosity);
+                if (settings.entropy !== undefined) entropy = parseFloat(settings.entropy);
+                if (settings.advection !== undefined) advection = parseFloat(settings.advection);
+                if (settings.buoyancy !== undefined) buoyancy = parseFloat(settings.buoyancy);
+                if (settings.bypass !== undefined) bypass = parseFloat(settings.bypass);
+                if (settings.timeGating !== undefined) timeGating = parseFloat(settings.timeGating);
+                if (settings.tempo !== undefined) tempo = parseFloat(settings.tempo);
+                if (settings.visualMode !== undefined) visualMode = parseFloat(settings.visualMode);
+                if (settings.theme !== undefined) theme = parseFloat(settings.theme);
+                if (settings.qualitySetting !== undefined) qualitySetting = settings.qualitySetting;
+                if (settings.useVideoMask !== undefined) useVideoMask = !!settings.useVideoMask;
+                if (settings.maskIntensity !== undefined) maskIntensity = parseFloat(settings.maskIntensity);
+                if (settings.gpuNoiseToggled !== undefined) gpuNoiseToggled = !!settings.gpuNoiseToggled;
+                if (settings.cpuBuoyancyToggled !== undefined) cpuBuoyancyToggled = !!settings.cpuBuoyancyToggled;
+                if (settings.asyncComputeEnabled !== undefined) asyncComputeEnabled = !!settings.asyncComputeEnabled;
+                if (settings.dynamicThermoToggled !== undefined) dynamicThermoToggled = !!settings.dynamicThermoToggled;
+                if (settings.showSpectrogram !== undefined) showSpectrogram = !!settings.showSpectrogram;
+                if (settings.livingBg !== undefined) livingBg = !!settings.livingBg;
+                if (settings.audioRelativeMode !== undefined) audioRelativeMode = !!settings.audioRelativeMode;
+                if (settings.graphFineness !== undefined) graphFineness = parseFloat(settings.graphFineness);
+                if (settings.fullPressureSolver !== undefined) fullPressureSolver = !!settings.fullPressureSolver;
+                if (settings.audioThreshold !== undefined) audioThreshold = parseFloat(settings.audioThreshold);
+                if (settings.audioSensitivity !== undefined) audioSensitivity = parseFloat(settings.audioSensitivity);
+                if (settings.showTelemetry !== undefined) {
+                    showTelemetry = !!settings.showTelemetry;
+                    const canvasEl = document.getElementById('telemetryCanvas');
+                    if (canvasEl) canvasEl.style.display = showTelemetry ? 'block' : 'none';
+                }
+                logEvent("Loaded config from localStorage");
+            } catch (e) {
+                console.error("Failed to load settings:", e);
+            }
+        }
+
+        function updateUIElements() {
+            document.getElementById('ctrl-visual-mode').value = visualMode;
+            document.getElementById('ctrl-theme').value = theme;
+            document.getElementById('ctrl-viscosity').value = viscosity;
+            document.getElementById('val-viscosity').innerText = viscosity.toFixed(3);
+            document.getElementById('ctrl-entropy').value = entropy;
+            document.getElementById('val-entropy').innerText = entropy.toFixed(3);
+            document.getElementById('ctrl-advection').value = advection;
+            document.getElementById('val-advection').innerText = advection.toFixed(2);
+            document.getElementById('ctrl-buoyancy').value = buoyancy;
+            document.getElementById('val-buoyancy').innerText = buoyancy.toFixed(1);
+            document.getElementById('ctrl-time-gating').value = timeGating;
+            document.getElementById('val-time-gating').innerText = timeGating.toFixed(3);
+            document.getElementById('ctrl-tempo').value = tempo;
+            document.getElementById('val-tempo').innerText = tempo.toFixed(1);
+            if (document.getElementById('ctrl-quality')) document.getElementById('ctrl-quality').value = qualitySetting;
+            if (document.getElementById('ctrl-audio-agc')) document.getElementById('ctrl-audio-agc').checked = audioRelativeMode;
+            if (document.getElementById('ctrl-graph-fineness')) {
+                document.getElementById('ctrl-graph-fineness').value = graphFineness;
+                document.getElementById('val-graph-fineness').innerText = graphFineness.toFixed(2);
+            }
+            if (document.getElementById('ctrl-full-pressure')) document.getElementById('ctrl-full-pressure').checked = fullPressureSolver;
+            document.getElementById('ctrl-bypass').checked = bypass > 0.5;
+            document.getElementById('ctrl-video-mask').checked = useVideoMask;
+            document.getElementById('ctrl-mask-intensity').value = maskIntensity;
+            document.getElementById('val-mask-intensity').innerText = maskIntensity.toFixed(1);
+            document.getElementById('ctrl-gpu-noise').checked = gpuNoiseToggled;
+            document.getElementById('ctrl-cpu-buoyancy').checked = cpuBuoyancyToggled;
+            document.getElementById('ctrl-async-compute').checked = asyncComputeEnabled;
+            document.getElementById('ctrl-show-telemetry').checked = showTelemetry;
+            if (document.getElementById('ctrl-dynamic-thermo')) document.getElementById('ctrl-dynamic-thermo').checked = dynamicThermoToggled;
+            if (document.getElementById('ctrl-show-overlays')) document.getElementById('ctrl-show-overlays').checked = showSpectrogram;
+            if (document.getElementById('ctrl-living-bg')) document.getElementById('ctrl-living-bg').checked = livingBg;
+            if (document.getElementById('ctrl-audio-threshold')) {
+                document.getElementById('ctrl-audio-threshold').value = audioThreshold;
+                document.getElementById('val-audio-threshold').innerText = audioThreshold.toFixed(3);
+            }
+            if (document.getElementById('ctrl-audio-sensitivity')) {
+                document.getElementById('ctrl-audio-sensitivity').value = audioSensitivity;
+                document.getElementById('val-audio-sensitivity').innerText = audioSensitivity.toFixed(2);
+            }
+        }
+
+        let backupConfig = null;
+
+        function openSettingsPanel() {
+            const panel = document.getElementById('settings-panel');
+            if (!panel.classList.contains('open')) {
+                backupConfig = {
+                    viscosity, entropy, advection, buoyancy, bypass,
+                    timeGating, tempo, visualMode, theme, qualitySetting,
+                    useVideoMask, maskIntensity, gpuNoiseToggled, cpuBuoyancyToggled, asyncComputeEnabled, showTelemetry,
+                    audioThreshold, audioSensitivity, dynamicThermoToggled, showSpectrogram, livingBg,
+                    audioRelativeMode, graphFineness, fullPressureSolver
+                };
+                panel.classList.add('open');
+                logEvent("Settings panel opened, backup created.");
+            }
+        }
+
+        async function closeSettingsPanel(saveChanges) {
+            const panel = document.getElementById('settings-panel');
+            if (panel.classList.contains('open')) {
+                if (saveChanges) {
+                    saveSettings();
+                    logEvent("Settings saved successfully.");
+                } else {
+                    if (backupConfig) {
+                        viscosity = backupConfig.viscosity;
+                        entropy = backupConfig.entropy;
+                        advection = backupConfig.advection;
+                        buoyancy = backupConfig.buoyancy;
+                        bypass = backupConfig.bypass;
+                        timeGating = backupConfig.timeGating;
+                        tempo = backupConfig.tempo;
+
+                        const needPipelineRebuild = (qualitySetting !== backupConfig.qualitySetting);
+                        const webcamChanged = (useVideoMask !== backupConfig.useVideoMask);
+
+                        visualMode = backupConfig.visualMode;
+                        theme = backupConfig.theme;
+                        qualitySetting = backupConfig.qualitySetting;
+                        useVideoMask = backupConfig.useVideoMask;
+                        maskIntensity = backupConfig.maskIntensity;
+                        gpuNoiseToggled = backupConfig.gpuNoiseToggled;
+                        cpuBuoyancyToggled = backupConfig.cpuBuoyancyToggled;
+                        asyncComputeEnabled = backupConfig.asyncComputeEnabled;
+                        showTelemetry = backupConfig.showTelemetry;
+                        audioThreshold = backupConfig.audioThreshold;
+                        audioSensitivity = backupConfig.audioSensitivity;
+                        dynamicThermoToggled = backupConfig.dynamicThermoToggled;
+                        showSpectrogram = backupConfig.showSpectrogram;
+                        livingBg = backupConfig.livingBg;
+                        audioRelativeMode = backupConfig.audioRelativeMode;
+                        graphFineness = backupConfig.graphFineness;
+                        fullPressureSolver = backupConfig.fullPressureSolver;
+
+                        updateUIElements();
+                        saveSettings();
+
+                        const canvasEl = document.getElementById('telemetryCanvas');
+                        if (canvasEl) canvasEl.style.display = showTelemetry ? 'block' : 'none';
+
+                        if (needPipelineRebuild && device) {
+                            await buildPipelines();
+                        }
+                        if (webcamChanged) {
+                            if (useVideoMask) await initWebcam();
+                            else stopWebcam();
+                        }
+                        logEvent("Settings closed without saving, changes reverted.");
+                    }
+                }
+                panel.classList.remove('open');
+            }
+        }
+
+        function setupSettingsListeners() {
+            const panel = document.getElementById('settings-panel');
+            const toggleBtn = document.getElementById('settings-toggle-btn');
+
+            toggleBtn.addEventListener('click', () => {
+                if (panel.classList.contains('open')) {
+                    closeSettingsPanel(true);
+                } else {
+                    openSettingsPanel();
+                }
+            });
+
+            document.getElementById('btn-fullscreen').addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        logEvent(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            document.getElementById('settings-save-top-btn').addEventListener('click', () => {
+                closeSettingsPanel(true);
+            });
+            document.getElementById('settings-save-bottom-btn').addEventListener('click', () => {
+                closeSettingsPanel(true);
+            });
+            document.getElementById('settings-close-btn').addEventListener('click', () => {
+                closeSettingsPanel(false);
+            });
+
+            document.getElementById('ctrl-visual-mode').addEventListener('change', (e) => {
+                visualMode = parseFloat(e.target.value);
+                logEvent(`Visual Mode changed to: ${visualMode}`);
+                saveSettings();
+            });
+
+            document.getElementById('ctrl-theme').addEventListener('change', (e) => {
+                theme = parseFloat(e.target.value);
+                const themes = ["Plasma", "Cyberpunk", "Toxic", "Ice", "Thermal", "Space", "Water", "Digital"];
+                logEvent(`Theme changed to: ${themes[theme] || theme}`);
+                saveSettings();
+            });
+
+            function bindRange(id, valId, setter) {
+                const input = document.getElementById(id);
+                const display = document.getElementById(valId);
+                input.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    setter(val);
+                    const decimals = id.includes('buoyancy') || id.includes('tempo') ? 1 :
+                        (id.includes('advection') || id.includes('sensitivity') ? 2 : 3);
+                    display.innerText = val.toFixed(decimals);
+                });
+                input.addEventListener('change', () => {
+                    saveSettings();
+                    logEvent(`${id.replace('ctrl-', '')} updated`);
+                });
+            }
+
+            bindRange('ctrl-viscosity', 'val-viscosity', v => { viscosity = v; });
+            bindRange('ctrl-entropy', 'val-entropy', v => { entropy = v; });
+            bindRange('ctrl-advection', 'val-advection', v => { advection = v; });
+            bindRange('ctrl-buoyancy', 'val-buoyancy', v => { buoyancy = v; });
+            bindRange('ctrl-time-gating', 'val-time-gating', v => { timeGating = v; });
+            bindRange('ctrl-tempo', 'val-tempo', v => { tempo = v; });
+            bindRange('ctrl-audio-sensitivity', 'val-audio-sensitivity', v => { audioSensitivity = v; });
+            bindRange('ctrl-audio-threshold', 'val-audio-threshold', v => { audioThreshold = v; });
+
+            document.getElementById('btn-auto-adjust').addEventListener('click', () => {
+                if (isCalibrating) return;
+                isCalibrating = true;
+                calibrationFrames = 0;
+                maxCalibrationNoise = 0.0;
+
+                const btn = document.getElementById('btn-auto-adjust');
+                btn.innerText = "Calibrating Silence...";
+                btn.style.borderColor = "#ffaa00";
+                btn.style.color = "#ffaa00";
+                logEvent("Starting silence auto-calibration... Please ensure zero input/silence.");
+            });
+
+            document.getElementById('ctrl-quality').addEventListener('change', async (e) => {
+                qualitySetting = e.target.value;
+                logEvent(`Quality changed to: ${qualitySetting}`);
+                saveSettings();
+                applyQualitySetting();
+                if (device) {
+                    await reinitWebGPUSeamless();
+                }
+            });
+
+            document.getElementById('ctrl-audio-agc').addEventListener('change', (e) => {
+                audioRelativeMode = e.target.checked;
+                logEvent(`Audio AGC Relative Mode: ${audioRelativeMode ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            bindRange('ctrl-graph-fineness', 'val-graph-fineness', v => { graphFineness = v; });
+
+            document.getElementById('ctrl-full-pressure').addEventListener('change', (e) => {
+                fullPressureSolver = e.target.checked;
+                logEvent(`Full Pressure Solver: ${fullPressureSolver ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            document.getElementById('ctrl-bypass').addEventListener('change', (e) => {
+                bypass = e.target.checked ? 1.0 : 0.0;
+                logEvent(`Bypass Mode: ${bypass > 0.5 ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            document.getElementById('ctrl-video-mask').addEventListener('change', async (e) => {
+                useVideoMask = e.target.checked;
+                logEvent(`Webcam Video Mask: ${useVideoMask ? 'ON' : 'OFF'}`);
+                saveSettings();
+                if (useVideoMask) {
+                    await initWebcam();
+                } else {
+                    stopWebcam();
+                }
+            });
+
+            bindRange('ctrl-mask-intensity', 'val-mask-intensity', v => { maskIntensity = v; });
+
+            document.getElementById('ctrl-gpu-noise').addEventListener('change', (e) => {
+                gpuNoiseToggled = e.target.checked;
+                logEvent(`GPU Noise dynamic mapping: ${gpuNoiseToggled ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            document.getElementById('ctrl-cpu-buoyancy').addEventListener('change', (e) => {
+                cpuBuoyancyToggled = e.target.checked;
+                logEvent(`CPU Buoyancy dynamic mapping: ${cpuBuoyancyToggled ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            if (document.getElementById('ctrl-dynamic-thermo')) {
+                document.getElementById('ctrl-dynamic-thermo').addEventListener('change', (e) => {
+                    dynamicThermoToggled = e.target.checked;
+                    logEvent(`Dynamic Thermodynamics: ${dynamicThermoToggled ? 'ON' : 'OFF'}`);
+                    saveSettings();
+                });
+            }
+
+            if (document.getElementById('ctrl-show-overlays')) {
+                document.getElementById('ctrl-show-overlays').addEventListener('change', (e) => {
+                    showSpectrogram = e.target.checked;
+                    logEvent(`Spectrogram Overlays: ${showSpectrogram ? 'ON' : 'OFF'}`);
+                    saveSettings();
+                });
+            }
+
+            if (document.getElementById('ctrl-living-bg')) {
+                document.getElementById('ctrl-living-bg').addEventListener('change', (e) => {
+                    livingBg = e.target.checked;
+                    logEvent(`Living Background: ${livingBg ? 'ON' : 'OFF'}`);
+                    saveSettings();
+                });
+            }
+
+            if (document.getElementById('btn-fullscreen')) {
+                document.getElementById('btn-fullscreen').addEventListener('click', () => {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(err => {
+                            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                        });
+                    } else {
+                        document.exitFullscreen();
+                    }
+                });
+            }
+
+            document.getElementById('ctrl-async-compute').addEventListener('change', (e) => {
+                asyncComputeEnabled = e.target.checked;
+                logEvent(`Async Compute Isolation: ${asyncComputeEnabled ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            document.getElementById('ctrl-show-telemetry').addEventListener('change', (e) => {
+                showTelemetry = e.target.checked;
+                const canvasEl = document.getElementById('telemetryCanvas');
+                if (canvasEl) {
+                    canvasEl.style.display = showTelemetry ? 'block' : 'none';
+                }
+                logEvent(`Telemetry Graph: ${showTelemetry ? 'ON' : 'OFF'}`);
+                saveSettings();
+            });
+
+            document.getElementById('export-log-btn').addEventListener('click', () => {
+                const blob = new Blob([JSON.stringify(ideationLog, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `serenity_vis_ideation_log_${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                logEvent("Exported ideation log JSON file");
+            });
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', async (e) => {
+                if (e.key === 'Escape' || e.key === 'Tab') {
+                    e.preventDefault();
+                    if (document.getElementById('settings-panel').classList.contains('open')) {
+                        closeSettingsPanel(true);
+                    } else {
+                        openSettingsPanel();
+                    }
+                }
+                if (e.key >= '1' && e.key <= '8') {
+                    const val = parseInt(e.key) - 1;
+                    theme = parseFloat(val);
+                    document.getElementById('ctrl-theme').value = theme;
+                    const themes = ["Plasma", "Cyberpunk", "Toxic", "Ice", "Thermal", "Space", "Water", "Digital"];
+                    logEvent(`Hotkey: Theme set to ${themes[theme]}`);
+                    saveSettings();
+                }
+                if (e.key.toLowerCase() === 'm') {
+                    visualMode = (visualMode + 1.0) % 4.0;
+                    document.getElementById('ctrl-visual-mode').value = visualMode;
+                    logEvent(`Hotkey: Visual Mode cycled to ${visualMode}`);
+                    saveSettings();
+                }
+                if (e.key.toLowerCase() === 'h') {
+                    heavyMode = !heavyMode;
+                    document.getElementById('ctrl-heavy-mode').checked = heavyMode;
+                    logEvent(`Hotkey: Heavy Mode toggled to ${heavyMode}`);
+                    saveSettings();
+                    if (device) {
+                        await buildPipelines();
+                    }
+                }
+                if (e.key.toLowerCase() === 'b') {
+                    bypass = bypass > 0.5 ? 0.0 : 1.0;
+                    document.getElementById('ctrl-bypass').checked = bypass > 0.5;
+                    logEvent(`Hotkey: Fluid Bypass toggled to ${bypass > 0.5}`);
+                    saveSettings();
+                }
+                if (e.key.toLowerCase() === 't') {
+                    dynamicThermoToggled = !dynamicThermoToggled;
+                    if (document.getElementById('ctrl-dynamic-thermo')) document.getElementById('ctrl-dynamic-thermo').checked = dynamicThermoToggled;
+                    logEvent(`Hotkey: Dynamic Thermodynamics toggled to ${dynamicThermoToggled}`);
+                    saveSettings();
+                }
+                if (e.key.toLowerCase() === 'g') {
+                    gpuNoiseToggled = !gpuNoiseToggled;
+                    document.getElementById('ctrl-gpu-noise').checked = gpuNoiseToggled;
+                    logEvent(`Hotkey: GPU Noise toggled to ${gpuNoiseToggled}`);
+                    saveSettings();
+                }
+                if (e.key.toLowerCase() === 'c') {
+                    cpuBuoyancyToggled = !cpuBuoyancyToggled;
+                    document.getElementById('ctrl-cpu-buoyancy').checked = cpuBuoyancyToggled;
+                    logEvent(`Hotkey: CPU Buoyancy toggled to ${cpuBuoyancyToggled}`);
+                    saveSettings();
+                }
+            });
+        }
+
+        async function initWebcam() {
+            if (videoElement) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360 }, audio: false });
+                videoElement = document.createElement('video');
+                videoElement.srcObject = stream;
+                videoElement.autoplay = true;
+                videoElement.loop = true;
+                videoElement.muted = true;
+                videoElement.playsInline = true;
+                await videoElement.play();
+                logEvent("Webcam initialized for NVDEC/DXVA2 mask.");
+            } catch (e) {
+                console.error("Failed to initialize webcam:", e);
+                logEvent("Failed to initialize webcam.");
+                document.getElementById('ctrl-video-mask').checked = false;
+                useVideoMask = false;
+            }
+        }
+
+        function stopWebcam() {
+            if (videoElement && videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement = null;
+                logEvent("Webcam disabled.");
+            }
+        }
+
+        let telemetryCanvas = null;
+        let telCtx = null;
+        let telemetryHistory = [];
+
+        function updateTelemetryGraph(cpu, gpu, enc, dec, temp, mem) {
+            if (!telemetryCanvas) {
+                telemetryCanvas = document.getElementById('telemetryCanvas');
+                if (telemetryCanvas) {
+                    telCtx = telemetryCanvas.getContext('2d');
+                }
+            }
+            if (!telemetryCanvas || !telCtx) return;
+            if (!showTelemetry) {
+                telemetryCanvas.style.display = 'none';
+                return;
+            }
+            telemetryCanvas.style.display = 'block';
+
+            telemetryHistory.push({ cpu, gpu, enc, dec });
+            if (telemetryHistory.length > 120) {
+                telemetryHistory.shift();
+            }
+
+            telCtx.clearRect(0, 0, telemetryCanvas.width, telemetryCanvas.height);
+
+            // Grid
+            telCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            telCtx.lineWidth = 1;
+            for (let i = 20; i < 120; i += 20) {
+                telCtx.beginPath();
+                telCtx.moveTo(0, i);
+                telCtx.lineTo(telemetryCanvas.width, i);
+                telCtx.stroke();
+            }
+
+            const drawLine = (key, color) => {
+                telCtx.strokeStyle = color;
+                telCtx.lineWidth = 1.5;
+                telCtx.beginPath();
+                for (let i = 0; i < telemetryHistory.length; i++) {
+                    const x = i * 2;
+                    const val = telemetryHistory[i][key];
+                    const y = telemetryCanvas.height - (val * (telemetryCanvas.height - 20)) - 10;
+                    if (i === 0) {
+                        telCtx.moveTo(x, y);
+                    } else {
+                        telCtx.lineTo(x, y);
+                    }
+                }
+                telCtx.stroke();
+            };
+
+            drawLine('cpu', '#ff5555');
+            drawLine('gpu', '#00ffcc');
+            drawLine('enc', '#55ff55');
+            drawLine('dec', '#ffaa00');
+
+            telCtx.font = '8px monospace';
+            telCtx.fillStyle = '#ff5555';
+            telCtx.fillText(`CPU: ${(cpu * 100).toFixed(0)}%`, 5, 12);
+            telCtx.fillStyle = '#00ffcc';
+            telCtx.fillText(`GPU: ${(gpu * 100).toFixed(0)}%`, 65, 12);
+            telCtx.fillStyle = '#55ff55';
+            telCtx.fillText(`ENC: ${(enc * 100).toFixed(0)}%`, 125, 12);
+            telCtx.fillStyle = '#ffaa00';
+            telCtx.fillText(`DEC: ${(dec * 100).toFixed(0)}%`, 185, 12);
+
+            telCtx.fillStyle = '#ffffff';
+            telCtx.fillText(`TEMP: ${temp.toFixed(0)}°C | VRAM: ${(mem * 100).toFixed(0)}%`, 5, telemetryCanvas.height - 5);
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8080');
+            ws.binaryType = 'arraybuffer';
+            ws.onmessage = (event) => {
+                wsData = new Float32Array(event.data);
+                if (wsData.length >= 134) {
+                    updateTelemetryGraph(wsData[128], wsData[129], wsData[130], wsData[131], wsData[132], wsData[133]);
+                }
+            };
+            ws.onclose = () => {
+                ws = null;
+                wsData = null;
+                setTimeout(connectWebSocket, 2000);
+            };
+            ws.onerror = () => {
+                if (ws) ws.close();
+            };
+        }
+
+        async function initWebGPU() {
+            if (!navigator.gpu) {
+                showError("WebGPU is not supported in your browser. Please use Chrome/Edge on desktop.");
+                return false;
+            }
+
+            const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+            if (!adapter) {
+                showError("No WebGPU adapter found.");
+                return false;
+            }
+            device = await adapter.requestDevice();
+
+            context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+
+            canvas.width = Math.min(window.innerWidth, 1920);
+            canvas.height = Math.min(window.innerHeight, 1080);
+
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+
+            return true;
+        }
+
+        async function setupAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaStreamSource(stream);
+
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.8;
+                source.connect(analyser);
+
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                return true;
+            } catch (err) {
+                console.error("Local mic capture unavailable. Fallback to websocket server.", err);
+                return false;
+            }
+        }
+
+        function createTex(format, usage) {
+            return device.createTexture({
+                size: [simWidth, simHeight, 1],
+                format: format,
+                usage: usage | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
+            });
+        }
+
+        function applyQualitySetting() {
+            if (qualitySetting.includes("1080p")) { simWidth = 1920; simHeight = 1080; }
+            else if (qualitySetting.includes("720p")) { simWidth = 1280; simHeight = 720; }
+            else if (qualitySetting.includes("480p")) { simWidth = 854; simHeight = 480; }
+            
+            if (qualitySetting.includes("60")) targetFPS = 60.0;
+            else if (qualitySetting.includes("30")) targetFPS = 30.0;
+            else if (qualitySetting.includes("24")) targetFPS = 24.0;
+            
+            frameInterval = 1000.0 / targetFPS;
+        }
+
+        async function reinitWebGPUSeamless() {
+            if (!device) return;
+            let reinitFlag = document.createElement('div');
+            reinitFlag.style.position = 'absolute';
+            reinitFlag.style.top = '25%';
+            reinitFlag.style.left = '50%';
+            reinitFlag.style.transform = 'translate(-50%, -50%)';
+            reinitFlag.style.color = '#00ffcc';
+            reinitFlag.style.padding = '10px 20px';
+            reinitFlag.style.background = 'rgba(0,0,0,0.8)';
+            reinitFlag.style.border = '1px solid #00ffcc';
+            reinitFlag.style.zIndex = '9999';
+            reinitFlag.innerText = 'Reconfiguring Engine...';
+            document.body.appendChild(reinitFlag);
+
+            await new Promise(r => setTimeout(r, 50));
+            
+            await buildPipelines();
+            
+            reinitFlag.remove();
+        }
+
+        async function buildPipelines() {
+            applyQualitySetting();
+
+            if (textureA) textureA.destroy();
+            if (textureB) textureB.destroy();
+            if (velA) velA.destroy();
+            if (velB) velB.destroy();
+            if (divTex) divTex.destroy();
+            if (presA) presA.destroy();
+            if (presB) presB.destroy();
+
+            textureA = createTex('rgba16float', GPUTextureUsage.COPY_DST);
+            textureB = createTex('rgba16float', GPUTextureUsage.COPY_DST);
+            velA = createTex('rgba16float', 0);
+            velB = createTex('rgba16float', 0);
+            divTex = createTex('rgba16float', 0);
+            presA = createTex('rgba16float', 0);
+            presB = createTex('rgba16float', 0);
+
+            paramsBuffer = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+            audioBuffer = device.createBuffer({ size: 128 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+            const computeModule = device.createShaderModule({ code: COMPUTE_SHADER });
+
+            function makePipeline(entry) {
+                return device.createComputePipeline({
+                    layout: 'auto',
+                    compute: { module: computeModule, entryPoint: entry }
+                });
+            }
+
+            advectVelPipeline = makePipeline('advectVelocity');
+            advectDyePipeline = makePipeline('advectDye');
+            applyForcesPipeline = makePipeline('applyForces');
+            applyForcesWithMaskPipeline = makePipeline('applyForcesWithMask');
+            divPipeline = makePipeline('computeDivergence');
+            jacobiPipeline = makePipeline('jacobiPressure');
+            projectPipeline = makePipeline('projectVelocity');
+            rdPipeline = makePipeline('reactionDiffusion');
+
+            const renderModule = device.createShaderModule({ code: RENDER_SHADER });
+            renderPipeline = device.createRenderPipeline({
+                layout: 'auto',
+                vertex: { module: renderModule, entryPoint: 'vs_main' },
+                fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }] },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            const sampler = device.createSampler({ magFilter: 'linear' });
+            videoSampler = device.createSampler({ magFilter: 'linear' });
+
+            function makeGroup0(pipeline) {
+                return device.createBindGroup({
+                    layout: pipeline.getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: { buffer: paramsBuffer } },
+                        { binding: 1, resource: { buffer: audioBuffer } }
+                    ]
+                });
+            }
+
+            group0AdvectVel = makeGroup0(advectVelPipeline);
+            group0AdvectDye = makeGroup0(advectDyePipeline);
+            group0ApplyForces = makeGroup0(applyForcesPipeline);
+            group0ApplyForcesWithMask = makeGroup0(applyForcesWithMaskPipeline);
+            group0Div = makeGroup0(divPipeline);
+            group0Jacobi = makeGroup0(jacobiPipeline);
+            group0Project = makeGroup0(projectPipeline);
+            group0Rd = makeGroup0(rdPipeline);
+
+            function makeBG(pipeline, entries) {
+                return device.createBindGroup({
+                    layout: pipeline.getBindGroupLayout(1),
+                    entries: entries
+                });
+            }
+
+            bgAdvectVelAB = makeBG(advectVelPipeline, [
+                { binding: 0, resource: velA.createView() },
+                { binding: 1, resource: velB.createView() }
+            ]);
+            bgAdvectVelBA = makeBG(advectVelPipeline, [
+                { binding: 0, resource: velB.createView() },
+                { binding: 1, resource: velA.createView() }
+            ]);
+
+            bgAdvectDyeAB = makeBG(advectDyePipeline, [
+                { binding: 0, resource: velA.createView() },
+                { binding: 2, resource: textureA.createView() },
+                { binding: 3, resource: textureB.createView() }
+            ]);
+            bgAdvectDyeBA = makeBG(advectDyePipeline, [
+                { binding: 0, resource: velB.createView() },
+                { binding: 2, resource: textureB.createView() },
+                { binding: 3, resource: textureA.createView() }
+            ]);
+
+            bgApplyForcesAB = makeBG(applyForcesPipeline, [
+                { binding: 0, resource: velA.createView() },
+                { binding: 1, resource: velB.createView() },
+                { binding: 2, resource: textureA.createView() }
+            ]);
+            bgApplyForcesBA = makeBG(applyForcesPipeline, [
+                { binding: 0, resource: velB.createView() },
+                { binding: 1, resource: velA.createView() },
+                { binding: 2, resource: textureB.createView() }
+            ]);
+
+            bgDivA = makeBG(divPipeline, [
+                { binding: 0, resource: velA.createView() },
+                { binding: 5, resource: divTex.createView() }
+            ]);
+            bgDivB = makeBG(divPipeline, [
+                { binding: 0, resource: velB.createView() },
+                { binding: 5, resource: divTex.createView() }
+            ]);
+
+            bgJacobiAB = makeBG(jacobiPipeline, [
+                { binding: 4, resource: divTex.createView() },
+                { binding: 6, resource: presA.createView() },
+                { binding: 7, resource: presB.createView() }
+            ]);
+            bgJacobiBA = makeBG(jacobiPipeline, [
+                { binding: 4, resource: divTex.createView() },
+                { binding: 6, resource: presB.createView() },
+                { binding: 7, resource: presA.createView() }
+            ]);
+
+            bgProjectAB = makeBG(projectPipeline, [
+                { binding: 0, resource: velA.createView() },
+                { binding: 1, resource: velB.createView() },
+                { binding: 6, resource: presA.createView() }
+            ]);
+            bgProjectBA = makeBG(projectPipeline, [
+                { binding: 0, resource: velB.createView() },
+                { binding: 1, resource: velA.createView() },
+                { binding: 6, resource: presA.createView() }
+            ]);
+
+            bgRdAB = makeBG(rdPipeline, [
+                { binding: 2, resource: textureA.createView() },
+                { binding: 3, resource: textureB.createView() }
+            ]);
+            bgRdBA = makeBG(rdPipeline, [
+                { binding: 2, resource: textureB.createView() },
+                { binding: 3, resource: textureA.createView() }
+            ]);
+
+            renderBindGroupA = device.createBindGroup({
+                layout: renderPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: sampler },
+                    { binding: 1, resource: textureB.createView() },
+                    { binding: 2, resource: { buffer: audioBuffer } },
+                    { binding: 3, resource: { buffer: paramsBuffer } }
+                ]
+            });
+
+            renderBindGroupB = device.createBindGroup({
+                layout: renderPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: sampler },
+                    { binding: 1, resource: textureA.createView() },
+                    { binding: 2, resource: { buffer: audioBuffer } },
+                    { binding: 3, resource: { buffer: paramsBuffer } }
+                ]
+            });
+        }
+
+        async function initHardwareEncoder() {
+            if (!('VideoEncoder' in window)) return alert("WebCodecs not supported");
+            videoEncoder = new VideoEncoder({
+                output: () => { },
+                error: e => console.error(e)
+            });
+            const config = {
+                codec: 'avc1.42002A',
+                width: canvas.width,
+                height: canvas.height,
+                bitrate: 5_000_000,
+                framerate: 60,
+                hardwareAcceleration: "prefer-hardware"
+            };
+            try {
+                if ((await VideoEncoder.isConfigSupported(config)).supported) {
+                    videoEncoder.configure(config);
+                    isEncoding = true;
+                    encodeBtn.innerText = "ASIC Encode Active (Check Task Manager)";
+                    encodeBtn.style.borderColor = "#f55";
+                } else {
+                    alert("ASIC not supported");
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        let prevAudioF32 = new Float32Array(128).fill(0);
+        let rollingBinMax = new Float32Array(128).fill(0.001);
+
+        function updateLanguageGlyphs(audioF32) {
+            let flux = 0.0;
+            for (let i = 0; i < 128; i++) {
+                flux += Math.max(0.0, audioF32[i] - prevAudioF32[i]);
+                prevAudioF32[i] = audioF32[i];
+            }
+            flux /= 128.0;
+
+            const runes = ["⎔", "⏃", "⌬", "⏛", "⌿", "⍝", "⍎", "⍕", "⍝", "⍦", "⍱", "⎾", "⏍"];
+            let avgEnergy = audioF32.reduce((a, b) => a + b, 0) / 128.0;
+            let activeCount = Math.floor(avgEnergy * 15.0);
+
+            glyphCells.forEach((cell, i) => {
+                const isActive = (i < activeCount) || (Math.random() < flux * 5.0);
+                cell.style.opacity = isActive ? (0.2 + (Math.random() * 0.8)).toFixed(2) : "0";
+
+                if (isActive) {
+                    const rot = Math.round(flux * 720.0 + i * 45.0);
+                    const scale = (1.0 + flux * 3.0).toFixed(2);
+                    cell.style.transform = `scale(${scale}) rotate(${rot}deg)`;
+
+                    if (Math.random() < flux * 2.0 || !cell.innerText) {
+                        cell.innerText = runes[Math.floor(Math.random() * runes.length)];
+                        cell.style.color = '#00ffcc';
+                        cell.style.display = 'flex';
+                        cell.style.justifyContent = 'center';
+                        cell.style.alignItems = 'center';
+                        cell.style.fontSize = '0.9rem';
+                    }
+                } else {
+                    cell.style.transform = 'scale(1) rotate(0deg)';
+                }
+            });
+
+            if (flux > 0.15 && frameNum % 60 === 0) {
+                logEvent(`Beat/Transient peak detected: flux=${flux.toFixed(3)}`);
+            }
+        }
+
+        function render(timestamp) {
+            if (!timestamp) timestamp = performance.now();
+            if (timestamp - lastFrameTime < frameInterval) {
+                requestAnimationFrame(render);
+                return;
+            }
+            lastFrameTime = timestamp - ((timestamp - lastFrameTime) % frameInterval);
+
+            const startTime = performance.now();
+            if (!startTimestamp) startTimestamp = startTime;
+            const elapsed = (startTime - startTimestamp) / 1000.0;
+
+            let bassEnergy = 0;
+            let audioF32 = new Float32Array(128).fill(0);
+            let currentEnergy = 0;
+
+            let maxRawFrameNoise = 0.0;
+
+            if (wsData) {
+                for (let i = 0; i < 128; i++) {
+                    let rawVal = wsData[i] || 0;
+                    if (rawVal > maxRawFrameNoise) maxRawFrameNoise = rawVal;
+                    let gatedVal = rawVal < audioThreshold ? 0.0 : rawVal * audioSensitivity;
+                    if (audioRelativeMode) {
+                        rollingBinMax[i] = Math.max(rollingBinMax[i] * 0.995, gatedVal);
+                        gatedVal = rollingBinMax[i] > 0.0 ? (gatedVal / rollingBinMax[i]) : 0.0;
+                        gatedVal = Math.min(1.0, Math.max(0.0, gatedVal));
+                    }
+                    audioF32[i] = gatedVal;
+                    if (i < 10) bassEnergy += gatedVal;
+                    currentEnergy += gatedVal;
+                }
+                bassEnergy /= 10.0;
+                currentEnergy /= 128.0;
+                statusEl.innerText = "Status: Connected to Native DSP Server (ws)";
+                updateLanguageGlyphs(audioF32);
+            } else {
+                updateTelemetryGraph(latestCpu, latestGpu, latestEnc, latestDec, latestTemp, latestMem);
+                if (analyser) {
+                    analyser.getByteFrequencyData(dataArray);
+                    for (let i = 0; i < 128; i++) {
+                        let rawVal = (dataArray[i] || 0) / 255.0;
+                        if (rawVal > maxRawFrameNoise) maxRawFrameNoise = rawVal;
+                        let gatedVal = rawVal < audioThreshold ? 0.0 : rawVal * audioSensitivity;
+                        if (audioRelativeMode) {
+                            rollingBinMax[i] = Math.max(rollingBinMax[i] * 0.995, gatedVal);
+                            gatedVal = rollingBinMax[i] > 0.0 ? (gatedVal / rollingBinMax[i]) : 0.0;
+                            gatedVal = Math.min(1.0, Math.max(0.0, gatedVal));
+                        }
+                        audioF32[i] = gatedVal;
+                        if (i < 10) bassEnergy += gatedVal;
+                        currentEnergy += gatedVal;
+                    }
+                    bassEnergy /= 10.0;
+                    currentEnergy /= 128.0;
+                    statusEl.innerText = "Status: Compute Engine Active (Local Mic)";
+                    updateLanguageGlyphs(audioF32);
+                } else {
+                    statusEl.innerText = "Status: No Audio Source (Standby)";
+                }
+            }
+
+            if (isCalibrating) {
+                if (maxRawFrameNoise > maxCalibrationNoise) {
+                    maxCalibrationNoise = maxRawFrameNoise;
+                }
+                calibrationFrames++;
+                if (calibrationFrames >= totalCalibrationFrames) {
+                    isCalibrating = false;
+                    audioThreshold = Math.min(0.5, Math.max(0.002, maxCalibrationNoise + 0.005));
+
+                    if (maxCalibrationNoise < 0.01) {
+                        audioSensitivity = 1.5;
+                    } else if (maxCalibrationNoise < 0.05) {
+                        audioSensitivity = 1.0;
+                    } else {
+                        audioSensitivity = Math.max(0.5, 1.0 - (maxCalibrationNoise - 0.05));
+                    }
+
+                    logEvent(`Auto-calibration complete. Ambient noise: ${maxCalibrationNoise.toFixed(4)}. Set threshold to ${audioThreshold.toFixed(3)}, sensitivity to ${audioSensitivity.toFixed(2)}`);
+
+                    document.getElementById('ctrl-audio-threshold').value = audioThreshold;
+                    document.getElementById('val-audio-threshold').innerText = audioThreshold.toFixed(3);
+                    document.getElementById('ctrl-audio-sensitivity').value = audioSensitivity;
+                    document.getElementById('val-audio-sensitivity').innerText = audioSensitivity.toFixed(2);
+
+                    const btn = document.getElementById('btn-auto-adjust');
+                    if (btn) {
+                        btn.innerText = "Auto-Adjust (Calibrate Silence)";
+                        btn.style.borderColor = "#00ffcc";
+                        btn.style.color = "#00ffcc";
+                    }
+                    saveSettings();
+                }
+            }
+
+            // Dynamic physics update based on audio energy
+            smoothedEnergy = 0.1 * currentEnergy + 0.9 * smoothedEnergy;
+            const dynEntropy = dynamicThermoToggled ? entropy - (smoothedEnergy * 0.02) : entropy;
+            const dynBuoyancy = dynamicThermoToggled ? buoyancy * (1.0 + smoothedEnergy * 2.0) : buoyancy;
+            const dynViscosity = dynamicThermoToggled ? viscosity - (smoothedEnergy * 0.01) : viscosity;
+            const dynTimeGating = dynamicThermoToggled ? timeGating * (1.0 - smoothedEnergy * 0.05) : timeGating;
+
+            const paramsArray = new Float32Array([
+                simWidth, simHeight, elapsed, bassEnergy,
+                1.0 / 60.0, dynViscosity, dynEntropy, advection,
+                dynBuoyancy, bypass, dynTimeGating, tempo,
+                visualMode, theme, maskIntensity, latestCpu,
+                latestGpu, gpuNoiseToggled ? 1.0 : 0.0, cpuBuoyancyToggled ? 1.0 : 0.0, showSpectrogram ? 1.0 : 0.0,
+                livingBg ? 1.0 : 0.0, graphFineness, 0.0, 0.0
+            ]);
+            device.queue.writeBuffer(paramsBuffer, 0, paramsArray);
+            device.queue.writeBuffer(audioBuffer, 0, audioF32);
+
+            let bgVideoMask = null;
+            if (useVideoMask && videoElement && videoElement.readyState >= 2) {
+                bgVideoMask = device.createBindGroup({
+                    layout: applyForcesWithMaskPipeline.getBindGroupLayout(2),
+                    entries: [
+                        { binding: 0, resource: device.importExternalTexture({ source: videoElement }) },
+                        { binding: 1, resource: videoSampler }
+                    ]
+                });
+            }
+
+            let computeEncoder = null;
+            let computePass = null;
+            let combinedEncoder = null;
+
+            if (asyncComputeEnabled) {
+                computeEncoder = device.createCommandEncoder();
+                computePass = computeEncoder.beginComputePass();
+            } else {
+                combinedEncoder = device.createCommandEncoder();
+                computePass = combinedEncoder.beginComputePass();
+            }
+
+            if (bypass > 0.5) {
+                computePass.setPipeline(rdPipeline);
+                computePass.setBindGroup(0, group0Rd);
+                computePass.setBindGroup(1, frameNum % 2 === 0 ? bgRdAB : bgRdBA);
+                computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+                computePass.end();
+            } else {
+                // 1. Advect Velocity
+                computePass.setPipeline(advectVelPipeline);
+                computePass.setBindGroup(0, group0AdvectVel);
+                computePass.setBindGroup(1, frameNum % 2 === 0 ? bgAdvectVelAB : bgAdvectVelBA);
+                computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+
+                // 2. Advect Dye
+                computePass.setPipeline(advectDyePipeline);
+                computePass.setBindGroup(0, group0AdvectDye);
+                computePass.setBindGroup(1, frameNum % 2 === 0 ? bgAdvectDyeAB : bgAdvectDyeBA);
+                computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+
+                // 3. Apply Forces (Conditional Video Mask)
+                if (useVideoMask && bgVideoMask) {
+                    computePass.setPipeline(applyForcesWithMaskPipeline);
+                    computePass.setBindGroup(0, group0ApplyForcesWithMask);
+                    computePass.setBindGroup(1, frameNum % 2 === 0 ? bgApplyForcesBA : bgApplyForcesAB);
+                    computePass.setBindGroup(2, bgVideoMask);
+                } else {
+                    computePass.setPipeline(applyForcesPipeline);
+                    computePass.setBindGroup(0, group0ApplyForces);
+                    computePass.setBindGroup(1, frameNum % 2 === 0 ? bgApplyForcesBA : bgApplyForcesAB);
+                }
+                computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+
+                // 4. Compute Divergence
+                computePass.setPipeline(divPipeline);
+                computePass.setBindGroup(0, group0Div);
+                computePass.setBindGroup(1, frameNum % 2 === 0 ? bgDivA : bgDivB);
+                computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+
+                // 5. Jacobi Pressure
+                if (fullPressureSolver) {
+                    const iterations = qualitySetting.includes("1080p") ? 40 : 20;
+                    computePass.setPipeline(jacobiPipeline);
+                    computePass.setBindGroup(0, group0Jacobi);
+                    for (let i = 0; i < iterations; i++) {
+                        computePass.setBindGroup(1, i % 2 === 0 ? bgJacobiAB : bgJacobiBA);
+                        computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+                    }
+
+                    // 6. Project Velocity
+                    computePass.setPipeline(projectPipeline);
+                    computePass.setBindGroup(0, group0Project);
+                    computePass.setBindGroup(1, frameNum % 2 === 0 ? bgProjectAB : bgProjectBA);
+                    computePass.dispatchWorkgroups(Math.ceil(simWidth / 16), Math.ceil(simHeight / 16));
+                }
+
+                computePass.end();
+            }
+
+            const renderPassDescriptor = {
+                colorAttachments: [{
+                    view: context.getCurrentTexture().createView(),
+                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                    loadOp: 'clear',
+                    storeOp: 'store'
+                }]
+            };
+
+            if (asyncComputeEnabled) {
+                const renderEncoder = device.createCommandEncoder();
+                const passEncoder = renderEncoder.beginRenderPass(renderPassDescriptor);
+                passEncoder.setPipeline(renderPipeline);
+                passEncoder.setBindGroup(0, frameNum % 2 === 0 ? renderBindGroupA : renderBindGroupB);
+                passEncoder.draw(6, 1, 0, 0);
+                passEncoder.end();
+
+                device.queue.submit([computeEncoder.finish()]);
+                device.queue.submit([renderEncoder.finish()]);
+            } else {
+                const passEncoder = combinedEncoder.beginRenderPass(renderPassDescriptor);
+                passEncoder.setPipeline(renderPipeline);
+                passEncoder.setBindGroup(0, frameNum % 2 === 0 ? renderBindGroupA : renderBindGroupB);
+                passEncoder.draw(6, 1, 0, 0);
+                passEncoder.end();
+
+                device.queue.submit([combinedEncoder.finish()]);
+            }
+
+            if (isEncoding && videoEncoder.state === 'configured') {
+                const frame = new VideoFrame(canvas, { timestamp: performance.now() * 1000 });
+                videoEncoder.encode(frame, { keyFrame: (frameNum % 60 === 0) });
+                frame.close();
+            }
+
+            frameNum++;
+
+            const computeTime = Math.round(performance.now() - startTime);
+            if (frameNum % 10 === 0) {
+                telemetryEl.innerText = `Compute: ${computeTime}ms | Encode: ${isEncoding ? 'ON (ASIC)' : 'OFF'}`;
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.style.display = 'block';
+            startBtn.style.display = 'none';
+        }
+
+        startBtn.addEventListener('click', async () => {
+            startBtn.innerText = "Initializing Pipeline...";
+            const gpuReady = await initWebGPU();
+            if (!gpuReady) return;
+
+            connectWebSocket();
+            setupAudio();
+            await buildPipelines();
+
+            startBtn.style.display = 'none';
+            encodeBtn.style.display = 'block';
+
+            render();
+        });
+
+        encodeBtn.addEventListener('click', () => {
+            if (!isEncoding) {
+                initHardwareEncoder();
+            } else {
+                isEncoding = false;
+                videoEncoder.close();
+                encodeBtn.innerText = "Engage Hardware Encoder (NVENC/AMF)";
+                encodeBtn.style.borderColor = "var(--accent)";
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (!device) return;
+            canvas.width = Math.min(window.innerWidth, 1920);
+            canvas.height = Math.min(window.innerHeight, 1080);
+            context.configure({ device, format: navigator.gpu.getPreferredCanvasFormat(), alphaMode: 'premultiplied' });
+            buildPipelines();
+        });
+
+        // Initialize state, forms, and listeners on script load
+        loadSettings();
+        updateUIElements();
+        setupSettingsListeners();
+        setupKeyboardShortcuts();
+        logEvent("System ready. Click button to initialize Audio & WebGPU.");
+
+    </script>
+</body>
+
+</html>

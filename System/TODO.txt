@@ -1,0 +1,71 @@
+TODO
+
+[x] PHASE 1: DSP
+├── [x] Move DSP to C++ standalone thread
+├── [x] PCM sliding-window raw waveform analysis
+├── [x] Logarithmic FFT Bark scale bins
+├── [x] Audio input options (mic / system / both)
+└── [x] Focus matrix normal/bass
+
+[x] PHASE 2: FLUID
+├── [x] Stam Navier-Stokes incompressible fluid
+├── [x] Heat equation advection
+├── [x] Time-variable thermodynamics (entropy / dissipation)
+├── [x] Slider physics tweaking
+└── [x] Physics bypass toggle
+
+[x] PHASE 3: GRAPHICS
+├── [x] Live window resize texture rebuild
+├── [x] Linear Bar Bands plasma boundary
+├── [x] Chladni polar circle spectrolyzer
+├── [x] Max settings toggle ("Heavy Mode")
+└── [x] Presets, themes, customization
+
+[x] PHASE 4: UI/COGNITIVE
+├── [x] Settings menu panel (save on close)
+├── [x] Keyboard shortcuts and config
+├── [x] UI sliders for timings
+├── [x] Spectral flux glyph transformation
+└── [x] Mind ideation log backend
+
+[x] PHASE 5: SILICON
+├── [x] WebCodecs hardware encoder (NVENC/AMF)
+├── [x] DXVA2/NVDEC video decoding masks
+├── [x] Target unused hardware graphs (ASIC/Compute)
+├── [x] Async compute queues isolation
+└── [x] NVML/Pdh Windows telemetry
+
+[ ] PHASE 6: FUTURE
+├── [ ] N-Dimensional SDF raymarching
+├── [ ] Android OpenGL ES sandbox
+├── [ ] enhance security robustness.
+└── [x] quality choices (1080p60Hz, 1080p30Hz, 720p60Hz, 720p30Hz, 480p30Hz, 480p24Hz)
+
+[x] address thermodynamic bleed with time-gating.
+[x] tempo and energy of music/audio, intensity should affect heat, saturation, and dissipation.
+[x] add hover-descriptions and a toggle for this setting.
+[x] hotkey adjustments
+resolve ASIC support.
+
+[x] overhaul background visuals and thermodynamic properties. background should be moving. add setting to disable bar/circle.
+[x] I want settings for this. this is highly specific, it is the defining element of the appliication, its true purpose. 
+[x] thermo toggles, living/reactive background, fullscreen toggle.
+[x] input toggles (mic/system/both), audio sensitivity (volume threshold).
+[x] overhaul physics. make the fluid more 'alive', reactive, fluid.
+[x] MOST IMPORTANT: ground the vis in real-world data, thermodynamic fluidity and real-morphic physics.
+[x] the more it respects and simulates the fundamental laws of the universe, the more it will fulfill its purpose.
+[x] introspection. the mind is the final frontier of science. let's use this vis to unlock its secrets. or rather, to visualize its inner workings and dynamics.
+
+[x] fluidity > rigidity. hard-cuts and jaggies are unacceptable.
+[x] ensure window resizing.
+[x] for bar/circle, use waves/troughts, not hard level limits (disconnected textures.. prefer connected waves to make it look more liquid.)
+[x] move fullscreen setting to by settings gear, make it an icon.
+[x] window auto-resizing and scaling. heavy mode makes detail finer, uses more hardware.
+[x] make sure fluid engine, noise, and other visualization mertrics are functional.
+[x] ensure living background is properly implemented. it's the core. should be reactive.
+
+[x] bass is louder, making the rest of the audio graph flat. let's make this auto-compensating and adjustable. also a toggle (Real Value vs Relative)
+relative to a listener, that is.
+[x] setting for graph fineness (steps/smoothness)
+
+[x] basically, close any loose ends to fluid/thermodynamics simulation. it's not as good as it could be.

@@ -1,0 +1,32 @@
+for android support, whenever I get around to it.
+add quality settings from 480p24Hz-4k120Hz.
+
+reference prompt:
+To bring the Serenity engine to Android, you need to pivot away from your Windows-specific native binaries (WASAPI, NVML, Winsock) while preserving your core math and WGSL compute shaders.
+
+Because you already split your architecture cleanly between a C++ DSP backend and a WebGPU frontend, the migration path is straightforward. Here is the blueprint for moving your 5-phase engine to Android.
+
+### 1. The Audio Backend (DSP & C++)
+
+You must rip out `AudioServer.cpp`'s reliance on `mmdeviceapi.h` and Windows Sockets.
+
+* **Capture Engine:** Replace WASAPI with **Oboe** (Google’s C++ wrapper for AAudio/OpenSL ES). It provides the lowest possible latency on Android.
+* **System vs. Mic Audio:** Android heavily restricts global system audio loopback via the `AudioPlaybackCaptureAPI` (API 29+), meaning other apps must explicitly opt-in to let you capture their sound. You will need to rely primarily on the device microphone (`MediaRecorder.AudioSource.UNPROCESSED`) to drive the fluid physics.
+* **Data Pipeline:** Ditch the WebSocket server (`wsPayload`). Instead, compile your C++ DSP thread (the PCM sliding-window and Bark scale FFTs) into an `.so` native library and use **JNI (Java Native Interface)** to pass the byte arrays directly to your frontend.
+
+### 2. The Visuals (WebGPU & Fluid Dynamics)
+
+You do not need to rewrite your Stam Navier-Stokes or Chladni polar circle logic in Vulkan or OpenGL. Your WGSL code is highly portable. You have two options for the frontend:
+
+* **Option A: The Native Jetpack Route (Recommended):** Use the `androidx.webgpu` Jetpack library. This allows you to run your existing WGSL compute and render pipelines natively from Kotlin/Java without the overhead of a browser engine. You would overlay your UI toggles using Jetpack Compose.
+* **Option B: The WebView Wrapper:** If you want to drop `SerenityVis.html` straight into an app, wrap it in a hardware-accelerated Android `WebView`. As of 2026, the Android WebView engine fully supports WebGPU. You can inject your JNI audio data directly into the DOM using `WebView.evaluateJavascript`.
+
+### 3. Silicon & Telemetry Alternatives
+
+Your "Phase 5: Silicon" tasks require mapping Windows desktop APIs to Android equivalents to keep the app hardware-aware and efficient.
+
+* **Hardware Encoding:** Replace NVENC and AMF with Android's **`MediaCodec` API**. It provides direct access to the mobile SoC's (Snapdragon/Tensor) hardware video encoders, allowing you to capture the render surface asynchronously.
+* **System Telemetry:** You will lose the hyper-granular GPU/VRAM statistics provided by NVML. To drive your "living/reactive background" thermodynamics, you must swap to Android's `HardwarePropertiesManager` to poll device skin temperatures and `ActivityManager` to read memory pressure constraints.
+* **Performance Mode:** When your "Heavy Mode" is toggled, ensure you utilize Android's `Sustained Performance API` to prevent the OS from thermally throttling your compute shaders during long visualization sessions.
+
+Would you like to explore setting up the JNI bridge for Oboe, or map out the implementation for the `androidx.webgpu` Kotlin bindings first?
