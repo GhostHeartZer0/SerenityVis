@@ -3,6 +3,28 @@
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$WorkspaceDir = (Resolve-Path "$ScriptDir\..").Path
+$CacheDir = Join-Path $WorkspaceDir ".cache"
+$TempDir = Join-Path $CacheDir "temp"
+
+# Ensure directories exist
+@("temp", "nv_cuda", "torch_extensions", "torch_kernel_cache", "torch", "triton", "pip", "huggingface") | ForEach-Object {
+    $Path = Join-Path $CacheDir $_
+    if (-not (Test-Path $Path)) {
+        New-Item -ItemType Directory -Force -Path $Path | Out-Null
+    }
+}
+
+$env:TEMP = $TempDir
+$env:TMP = $TempDir
+$env:TMPDIR = $TempDir
+$env:CUDA_CACHE_PATH = Join-Path $CacheDir "nv_cuda"
+$env:TORCH_EXTENSIONS_DIR = Join-Path $CacheDir "torch_extensions"
+$env:PYTORCH_KERNEL_CACHE_PATH = Join-Path $CacheDir "torch_kernel_cache"
+$env:TORCH_HOME = Join-Path $CacheDir "torch"
+$env:TRITON_CACHE_DIR = Join-Path $CacheDir "triton"
+$env:PIP_CACHE_DIR = Join-Path $CacheDir "pip"
+$env:HF_HOME = Join-Path $CacheDir "huggingface"
 $ProjectDir = Resolve-Path (Join-Path $ScriptDir "..")
 $HtmlPath = Join-Path $ProjectDir "SerenityVis.html"
 $ExePath = Join-Path $ProjectDir "AudioServer.exe"

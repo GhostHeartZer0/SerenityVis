@@ -69,3 +69,7 @@ relative to a listener, that is.
 [x] setting for graph fineness (steps/smoothness)
 
 [x] basically, close any loose ends to fluid/thermodynamics simulation. it's not as good as it could be.
+
+ [x] Smart App Control & Cache Localization:
+- Localize TEMP/TMP and CUDA compiler cache paths to the workspace to bypass Windows security policy blocks.
+- Ensure all subprocess backends (MSVC, CMake, Pip, PyTorch, Triton) respect the localized variables.
