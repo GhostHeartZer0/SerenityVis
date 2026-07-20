@@ -1,6 +1,6 @@
 # Changelog
 
-## Version 0.0.1 — Initial Release
+## Version 0.6.0 — Initial Commit
 
 ### Features
 - **SerenityVis.html**: Single-file audio visualization system with real-time spectral analysis.
